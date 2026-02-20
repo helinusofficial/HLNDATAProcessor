@@ -7,6 +7,30 @@ from ArticleModel import ArticleModel
 
 
 class ProcessDataSrv:
+    animal_keywords = [
+        # موش‌ها و رت‌ها
+        "mouse", "mice", "rat", "sprague dawley", "wistar", "long evans",
+        # خرگوش‌ها
+        "rabbit", "rabbits",
+        # سگ‌ها و گربه‌ها
+        "dog", "dogs", "cat", "cats",
+        # ماهی و آبزیان
+        "zebrafish", "danio rerio", "frog", "xenopus", "fish", "salmon",
+        # حشرات و مدل‌های ساده
+        "fly", "drosophila", "bee", "mosquito",
+        # کرم‌ها و نماتدها
+        "c. elegans", "caenorhabditis elegans", "worm",
+        # مخمرها و قارچ‌ها
+        "yeast", "saccharomyces cerevisiae",
+        # دیگر پستانداران آزمایشگاهی
+        "guinea pig", "hamster", "gerbil", "ferret",
+        # پرندگان
+        "chicken", "quail", "duck",
+        # آبزیان کوچک آزمایشگاهی
+        "xenopus laevis", "xenopus tropicalis",
+        # مدل‌های آزمایشگاهی کمتر رایج
+        "pig", "minipig", "sheep", "goat", "cow", "calf", "horse", "rabbit"
+    ]
     @staticmethod
     def process_file(file_path: str) -> ArticleModel:
         if not os.path.exists(file_path):
@@ -20,6 +44,7 @@ class ProcessDataSrv:
             return None
 
         article = ArticleModel()
+        article.BankNo=1  #1=PMC
         article.ArtFileName = os.path.basename(file_path)
 
         article.JournalTitle = ProcessDataSrv._get_text(root, ".//journal-title")
@@ -34,12 +59,12 @@ class ProcessDataSrv:
         article.ArtLanguage = ProcessDataSrv._get_text(root, ".//language") or "en"
 
         pmid = ProcessDataSrv._get_text(root, ".//article-id[@pub-id-type='pmid']")
-        article.Pmid = int(pmid) if pmid.isdigit() else None
+        article.PmId = int(pmid) if pmid.isdigit() else None
 
         pmc = ProcessDataSrv._get_text(root, ".//article-id[@pub-id-type='pmc']")
         if pmc:
             pmc_clean = pmc.upper().replace('PMC', '').strip()
-            article.Pmcaid_Pmcaiid = int(pmc_clean) if pmc_clean.isdigit() else None
+            article.BankId = int(pmc_clean) if pmc_clean.isdigit() else None
 
         article.ArtVolume = ProcessDataSrv._get_text(root, ".//volume")
         article.ArtIssue = ProcessDataSrv._get_text(root, ".//issue")
@@ -90,6 +115,16 @@ class ProcessDataSrv:
         body_node = root.find(".//body")
         if body_node is not None:
             raw_text = " ".join(body_node.itertext())
+            content_to_check = " ".join([
+                article.ArtTitle or "",
+                article.ArtKeywords or "",
+                article.MainText or ""
+            ]).lower()
+
+            if any(k in content_to_check for k in ProcessDataSrv.animal_keywords):
+                article.Animal=True
+                return article
+
             cleaned = ProcessDataSrv._filter_figure_references(raw_text)
             article.MainText = clean(cleaned, extra_whitespace=True, dashes=True, bullets=False)
             article.MainText = clean_extra_whitespace(article.MainText).strip()

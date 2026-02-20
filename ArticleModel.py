@@ -9,8 +9,9 @@ class ArticleModel:
     MainText: str = ""
     PubDate: datetime = datetime.min
     ArtLanguage: str = ""
-    Pmid: Optional[int] = None
-    Pmcaid_Pmcaiid: Optional[int] = None
+    PmId: Optional[int] = None
+    BankId: Optional[int] = None
+    BankNo:int=""
     ArtDoi: str = ""
     ArtType: str = ""
     JournalTitle: str = ""
@@ -31,6 +32,7 @@ class ArticleModel:
     FundingGrant: str = ""
     CustomMeta: str = ""
     ArtReferences: str = ""
+    Animal:bool=False
 
     def to_dict(self):
         """تبدیل مدل به دیکشنری برای درج راحت در دیتابیس یا تبدیل به JSON"""

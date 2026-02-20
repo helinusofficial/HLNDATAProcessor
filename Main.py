@@ -22,7 +22,8 @@ def main():
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
-
+            if article_model.Animal:
+                continue
             if index % 100 == 0 or index == total_files:
                 print(f"[{index}/{total_files}] Processed: {article_model.ArtTitle[:50]}...")
 

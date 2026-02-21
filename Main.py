@@ -27,8 +27,9 @@ def main():
             if article_model.Animal:
                 continue
 
-            new_id = db.insert_with_stored_procedure('InsertData', 'Hello World')
-
+            new_id = db.insert_with_stored_procedure('InsertData', article_model)
+            if new_id<=0:
+                print(f"Error processing file {path}")
 
             if index % 100 == 0 or index == total_files:
                 print(f"[{index}/{total_files}] Processed: {article_model.ArtTitle[:50]}...")

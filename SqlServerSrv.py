@@ -22,17 +22,7 @@ class SqlServerSrv:
             print(f"Error connecting to SQL Server: {e}")
             raise
 
-    def insert_with_stored_procedure(self, sp_name, param_value):
-        """
-        Call a stored procedure to insert data and return the new ID.
-
-        Args:
-            sp_name (str): The name of the stored procedure.
-            param_value (str): The string value to insert.
-
-        Returns:
-            int: The ID of the inserted row.
-        """
+    def insert_with_stored_procedure(self, sp_name, articleModel):
         if self.conn is None:
             self.connect()
 
@@ -43,7 +33,7 @@ class SqlServerSrv:
             # For example: CREATE PROCEDURE InsertData @InputValue NVARCHAR(100), @NewID INT OUTPUT
             new_id = cursor.execute(f"DECLARE @NewID INT; "
                                     f"EXEC {sp_name} @InputValue=?, @NewID=@NewID OUTPUT; "
-                                    f"SELECT @NewID;", param_value).fetchone()[0]
+                                    f"SELECT @NewID;", articleModel.ArticlesID).fetchone()[0]
             self.conn.commit()
             return new_id
         except Exception as e:

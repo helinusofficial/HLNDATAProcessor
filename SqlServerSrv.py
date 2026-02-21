@@ -2,9 +2,6 @@ from sqlalchemy import create_engine, text
 
 class SqlServerSrv:
     def __init__(self, server='localhost', database='YourDatabase', username='sa', password='sa'):
-        """
-        Initialize the connection to SQL Server via SQLAlchemy (no ORM).
-        """
         self.connection_string = (
             f"mssql+pyodbc://{username}:{password}@{server}/{database}"
             "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
@@ -12,9 +9,6 @@ class SqlServerSrv:
         self.engine = None
 
     def connect(self):
-        """
-        Open the connection to the database.
-        """
         try:
             self.engine = create_engine(self.connection_string)
             print("Connected to SQL Server successfully via SQLAlchemy.")
@@ -23,10 +17,6 @@ class SqlServerSrv:
             raise
 
     def insert_with_stored_procedure(self, sp_name, articleModel):
-        """
-        Execute a stored procedure with all articleModel properties as parameters
-        and return the new ArticlesID created by the SP.
-        """
         if self.engine is None:
             self.connect()
 
@@ -62,7 +52,6 @@ class SqlServerSrv:
             articleModel.ArtBody
         )
 
-        # اجرای SP با tuple و علامت ? برای هر پارامتر
         with self.engine.connect() as conn:
             trans = conn.begin()
             try:

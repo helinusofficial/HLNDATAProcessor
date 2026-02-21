@@ -6,7 +6,8 @@ from typing import Optional
 class ArticleModel:
     ArticlesID: int = 0
     ArtTitle: str = ""
-    MainText: str = ""
+    ArtBody: str = ""
+    ArtAbstract: str = ""
     PubDate: datetime = datetime.min
     ArtLanguage: str = ""
     PmId: Optional[int] = None

@@ -109,13 +109,21 @@ class ProcessDataSrv:
             article.ArtKeywords = ", ".join(keywords)
             article.ArtLicense = ProcessDataSrv._get_text(root, ".//license//p")
 
+            abstract_node = root.find(".//abstract")
+            if abstract_node is not None:
+                raw_abstract = " ".join(abstract_node.itertext())
+                article.ArtAbstract = clean(clean_extra_whitespace(raw_abstract)).strip()
+            else:
+                article.ArtAbstract = ""
+
             body_node = root.find(".//body")
             if body_node is not None:
                 raw_text = " ".join(body_node.itertext())
                 content_to_check = " ".join([
                     article.ArtTitle or "",
                     article.ArtKeywords or "",
-                    article.MainText or ""
+                    article.ArtAbstract or "",
+                    article.ArtBody or ""
                 ]).lower()
 
                 if any(k in content_to_check for k in ProcessDataSrv.animal_keywords):
@@ -123,8 +131,8 @@ class ProcessDataSrv:
                     return article
 
                 cleaned = ProcessDataSrv._filter_figure_references(raw_text)
-                article.MainText = clean(cleaned, extra_whitespace=True, dashes=True, bullets=False)
-                article.MainText = clean_extra_whitespace(article.MainText).strip()
+                article.ArtBody = clean(cleaned, extra_whitespace=True, dashes=True, bullets=False)
+                article.ArtBody = clean_extra_whitespace(article.ArtBody).strip()
 
             refs = []
             for ref in root.xpath(".//ref"):

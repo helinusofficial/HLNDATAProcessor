@@ -34,9 +34,6 @@ def main():
             if index % 100 == 0 or index == total_files:
                 print(f"[{index}/{total_files}] Processed: {article_model.ArtTitle[:50]}...")
 
-            # اینجا جایی است که می‌توانی مدل را به SQL بفرستی
-            # SaveToSql(article_model)
-
         except Exception as e:
             print(f"Error processing file {path}: {str(e)}")
             continue

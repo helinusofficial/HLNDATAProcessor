@@ -25,6 +25,7 @@ def main():
         try:
             article_model = ProcessDataSrv.process_file(path)
             if article_model and article_model.NonTarget:
+                print(f"NonTarget file {article_model.ArtFileName}")
                 continue
 
             new_id = db.insert_with_stored_procedure('InsertData', article_model)

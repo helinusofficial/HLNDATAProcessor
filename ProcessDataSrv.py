@@ -29,12 +29,15 @@ class ProcessDataSrv:
         # آبزیان کوچک آزمایشگاهی
         "xenopus laevis", "xenopus tropicalis",
         # مدل‌های آزمایشگاهی کمتر رایج
-        "pig", "minipig", "sheep", "goat", "cow", "calf", "horse", "rabbit"
+        "pig", "minipig", "sheep", "goat", "cow", "calf", "horse",
+        "bovine", "cattle", "ewe", "goat", "mare", "sow", "veterinary", "udder",
+        "mastitis", "ruminant", "ovine", "caprine", "porcine", "heifer", "buffalo", "dairy"
     ]
 
     human_indicators = [
-        "patient", "women", "woman", "clinical trial", "cohort",
-        "participant", "volunteer", "biopsy", "human", "female"
+        "patient", "women", "woman", "clinical trial", "cohort", "participant", "volunteer", "biopsy", "human",
+        "female","lactation", "breastfeeding", "mammography", "mastalgia", "gynecomastia" , "breast surgery",
+        "maternal", "pregnancy", "menopause", "postmenopausal", "nulliparous"
     ]
 
     human_breast_cells = ["mcf-7", "mcf7", "mda-mb-231", "t47d", "sk-br-3", "bt-474"]

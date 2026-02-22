@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -12,7 +12,7 @@ class ArticleModel:
     ArtLanguage: str = ""
     PmId: Optional[int] = None
     BankId: Optional[int] = None
-    BankNo:int=""
+    BankNo: int = 0
     ArtDoi: str = ""
     ArtType: str = ""
     JournalTitle: str = ""
@@ -24,17 +24,21 @@ class ArticleModel:
     ArtPageRange: str = ""
     ArtAuthors: str = ""
     CorrespondingAuthor: str = ""
+    CorrEmail: str = ""          # فیلد جدید
     ArtAffiliations: str = ""
     ArtLicense: str = ""
     ArtPdfLink: str = ""
     ArtFileName: str = ""
     ArtKeywords: str = ""
+    MeshTerms: str = ""           # فیلد جدید
     PubHistory: str = ""
     FundingGrant: str = ""
+    FundingId: str = ""           # فیلد جدید
+    EthicsStatement: str = ""     # فیلد جدید
+    OrcidIds: str = ""            # فیلد جدید (لیست ORCIDها)
     CustomMeta: str = ""
     ArtReferences: str = ""
-    Animal:bool=False
+    Animal: bool = False
 
     def to_dict(self):
-        """تبدیل مدل به دیکشنری برای درج راحت در دیتابیس یا تبدیل به JSON"""
         return self.__dict__

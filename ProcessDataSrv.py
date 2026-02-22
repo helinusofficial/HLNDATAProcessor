@@ -31,6 +31,15 @@ class ProcessDataSrv:
         # مدل‌های آزمایشگاهی کمتر رایج
         "pig", "minipig", "sheep", "goat", "cow", "calf", "horse", "rabbit"
     ]
+
+    human_indicators = [
+        "patient", "women", "woman", "clinical trial", "cohort",
+        "participant", "volunteer", "biopsy", "human", "female"
+    ]
+
+    human_breast_cells = ["mcf-7", "mcf7", "mda-mb-231", "t47d", "sk-br-3", "bt-474"]
+    animal_breast_cells = ["4t1", "e0771", "mmt", "mtln3"]
+
     @staticmethod
     def process_file(file_path: str) -> ArticleModel:
         if not os.path.exists(file_path):
@@ -41,7 +50,7 @@ class ProcessDataSrv:
             root = tree.getroot()
 
             article = ArticleModel()
-            article.BankNo=1  #1=PMC
+            article.BankNo = 1
             article.ArtFileName = os.path.basename(file_path)
 
             article.JournalTitle = ProcessDataSrv._get_text(root, ".//journal-title")
@@ -78,7 +87,6 @@ class ProcessDataSrv:
                 year = ProcessDataSrv._get_text(node, "year")
                 month = ProcessDataSrv._get_text(node, "month")
                 day = ProcessDataSrv._get_text(node, "day")
-
                 if year.isdigit():
                     try:
                         m = int(month) if month and month.isdigit() and 1 <= int(month) <= 12 else 1
@@ -88,26 +96,42 @@ class ProcessDataSrv:
                         pass
 
             authors = []
+            orcids = []
             for auth in root.xpath(".//contrib[@contrib-type='author']"):
                 given = ProcessDataSrv._get_text(auth, './/given-names')
                 sur = ProcessDataSrv._get_text(auth, './/surname')
                 name = f"{given} {sur}".strip()
                 if name:
                     authors.append(name)
-            article.ArtAuthors = ", ".join(authors)
 
-            corr_auth = root.xpath(".//contrib[@contrib-type='author' and @corresp='yes']")
-            if corr_auth:
-                given = ProcessDataSrv._get_text(corr_auth[0], ".//given-names")
-                sur = ProcessDataSrv._get_text(corr_auth[0], ".//surname")
-                article.CorrespondingAuthor = f"{given} {sur}".strip()
+                orcid = ProcessDataSrv._get_text(auth, ".//contrib-id[@contrib-id-type='orcid']")
+                if orcid:
+                    orcids.append(f"{name}: {orcid}")
+
+                if auth.get("corresp") == "yes":
+                    article.CorrespondingAuthor = name
+                    email = ProcessDataSrv._get_text(auth, ".//email")
+                    if not email:
+                        email = ProcessDataSrv._get_text(root, ".//author-notes//email")
+                    article.CorrEmail = email
+
+            article.ArtAuthors = ", ".join(authors)
+            article.OrcidIds = " || ".join(orcids)
 
             affs = [clean_extra_whitespace(" ".join(aff.itertext())) for aff in root.xpath(".//aff")]
             article.ArtAffiliations = " | ".join(filter(None, affs))
 
             keywords = [k.text.strip() for k in root.xpath(".//kwd") if k.text]
             article.ArtKeywords = ", ".join(keywords)
+
+            mesh_list = [m.text.strip() for m in root.xpath(".//mesh-heading/descriptor-name") if m.text]
+            article.MeshTerms = " | ".join(mesh_list)
+
             article.ArtLicense = ProcessDataSrv._get_text(root, ".//license//p")
+
+            ethics = root.xpath(".//notes[@notes-type='ethics-statement'] | .//fn[@fn-type='ethics-statement']")
+            if ethics:
+                article.EthicsStatement = " ".join(ethics[0].itertext()).strip()
 
             abstract_node = root.find(".//abstract")
             if abstract_node is not None:
@@ -116,20 +140,28 @@ class ProcessDataSrv:
             else:
                 article.ArtAbstract = ""
 
+            # Animal/Human Detection Logic
+            check_zone = f"{article.ArtTitle} {article.ArtAbstract} {article.ArtKeywords} {article.MeshTerms}".lower()
+            has_human = any(k in check_zone for k in ProcessDataSrv.human_indicators) or \
+                        any(c in check_zone for c in ProcessDataSrv.human_breast_cells) or \
+                        "humans" in article.MeshTerms.lower()
+
+            has_animal = any(k in check_zone for k in ProcessDataSrv.animal_keywords) or \
+                         any(c in check_zone for c in ProcessDataSrv.animal_breast_cells)
+
+            if has_human:
+                article.Animal = False
+                article.StudyType = "Human"
+            elif has_animal:
+                article.Animal = True
+                article.StudyType = "Animal"
+                return article
+            else:
+                article.StudyType = "Unknown/Other"
+
             body_node = root.find(".//body")
             if body_node is not None:
                 raw_text = " ".join(body_node.itertext())
-                content_to_check = " ".join([
-                    article.ArtTitle or "",
-                    article.ArtKeywords or "",
-                    article.ArtAbstract or "",
-                    article.ArtBody or ""
-                ]).lower()
-
-                if any(k in content_to_check for k in ProcessDataSrv.animal_keywords):
-                    article.Animal=True
-                    return article
-
                 cleaned = ProcessDataSrv._filter_figure_references(raw_text)
                 article.ArtBody = clean(cleaned, extra_whitespace=True, dashes=True, bullets=False)
                 article.ArtBody = clean_extra_whitespace(article.ArtBody).strip()
@@ -141,13 +173,12 @@ class ProcessDataSrv:
                     refs.append(clean_extra_whitespace(ref_text))
             article.ArtReferences = " || ".join(refs)
 
-            article.FundingGrant = " | ".join(
-                [f.text.strip() for f in root.xpath(".//funding-source") if f.text]
-            )
+            article.FundingGrant = " | ".join([f.text.strip() for f in root.xpath(".//funding-source") if f.text])
+            article.FundingId = " | ".join([f.text.strip() for f in root.xpath(".//award-id") if f.text])
 
             article.ArtPdfLink = ProcessDataSrv._get_text(root, ".//self-uri[@content-type='pdf']/@href")
-        except Exception:
-            print(f"Error in ProcessDataSrv: {file_path}")
+        except Exception as e:
+            print(f"Error in ProcessDataSrv: {file_path} -> {e}")
             return None
 
         return article
@@ -170,7 +201,7 @@ class ProcessDataSrv:
         return " ".join([
             s for s in sentences
             if not (
-                re.search(r'(?i)\b(Fig|Table|Tbl)\.?\s*\d+', s)
-                and len(s) < 65
+                    re.search(r'(?i)\b(Fig|Table|Tbl)\.?\s*\d+', s)
+                    and len(s) < 65
             )
         ])

@@ -16,57 +16,58 @@ class SqlServerSrv:
             print(f"Error connecting to SQL Server: {e}")
             raise
 
-    def insert_with_stored_procedure(self, sp_name, articleModel):
+    def insert_with_stored_procedure(self, sp_name, article):
         if self.engine is None:
             self.connect()
-
-        # پارامترها به صورت tuple و به ترتیب SP
-        params = (
-            articleModel.ArtTitle,
-            articleModel.PubDate,
-            articleModel.ArtLanguage,
-            articleModel.Pmid,
-            articleModel.BankId,
-            articleModel.BankNo,
-            articleModel.ArtDoi,
-            articleModel.ArtType,
-            articleModel.JournalTitle,
-            articleModel.JournalAbbrev,
-            articleModel.ArtPublisher,
-            articleModel.ArtVolume,
-            articleModel.ArtIssue,
-            articleModel.ArtFpage,
-            articleModel.ArtPageRange,
-            articleModel.ArtAuthors,
-            articleModel.CorrespondingAuthor,
-            articleModel.ArtAffiliations,
-            articleModel.ArtLicense,
-            articleModel.ArtPdfLink,
-            articleModel.ArtFileName,
-            articleModel.ArtKeywords,
-            articleModel.PubHistory,
-            articleModel.FundingGrant,
-            articleModel.CustomMeta,
-            articleModel.ArtReferences,
-            articleModel.ArtAbstract,
-            articleModel.ArtBody,
-            articleModel.CorrEmail,
-            articleModel.MeshTerms,
-            articleModel.FundingId,
-            articleModel.EthicsStatement,
-            articleModel.OrcidIds
-        )
+        params = {
+            "ArtTitle": article.ArtTitle,
+            "PubDate": article.PubDate,
+            "ArtLanguage": article.ArtLanguage,
+            "Pmid": article.Pmid,
+            "BankId": article.BankId,
+            "BankNo": article.BankNo,
+            "ArtDoi": article.ArtDoi,
+            "ArtType": article.ArtType,
+            "JournalTitle": article.JournalTitle,
+            "JournalAbbrev": article.JournalAbbrev,
+            "ArtPublisher": article.ArtPublisher,
+            "ArtVolume": article.ArtVolume,
+            "ArtIssue": article.ArtIssue,
+            "ArtFpage": article.ArtFpage,
+            "ArtPageRange": article.ArtPageRange,
+            "ArtAuthors": article.ArtAuthors,
+            "ArtKeywords": article.ArtKeywords,
+            "ArtPdfLink": article.ArtPdfLink,
+            "ArtFileName": article.ArtFileName,
+            "CorrEmail": article.CorrEmail,
+            # فیلدهای جدول دوم
+            "ArtAbstract": article.ArtAbstract,
+            "ArtBody": article.ArtBody,
+            "MeshTerms": article.MeshTerms,
+            "ArtReferences": article.ArtReferences,
+            "ArtAffiliations": article.ArtAffiliations,
+            "OrcidIds": article.OrcidIds,
+            "FundingGrant": article.FundingGrant,
+            "FundingId": article.FundingId,
+            "EthicsStatement": article.EthicsStatement,
+            "CorrespondingAuthor": article.CorrespondingAuthor,
+            "ArtLicense": article.ArtLicense,
+            "PubHistory": article.PubHistory,
+            "CustomMeta": article.CustomMeta
+        }
 
         with self.engine.connect() as conn:
-            trans = conn.begin()
             try:
-                sql = "EXEC " + sp_name + " " + ",".join(["?"] * len(params))
-                result = conn.execute(text(sql), params)
+                placeholders = ", ".join([f"@{k}=:{k}" for k in params.keys()])
+                sql = text(f"EXEC {sp_name} {placeholders}")
+
+                result = conn.execute(sql, params)
                 new_id = result.scalar()
-                trans.commit()
+
+                conn.commit()
                 return new_id
             except Exception as e:
-                trans.rollback()
+                conn.rollback()
                 print(f"Error executing stored procedure: {e}")
                 raise
 

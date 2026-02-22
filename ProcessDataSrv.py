@@ -4,7 +4,7 @@ from lxml import etree
 from datetime import datetime
 from unstructured.cleaners.core import clean, clean_extra_whitespace
 from ArticleModel import ArticleModel
-
+import copy
 
 class ProcessDataSrv:
     animal_keywords = [
@@ -171,29 +171,59 @@ class ProcessDataSrv:
             if ethics:
                 article.EthicsStatement = " ".join(ethics[0].itertext()).strip()
 
-            # Body
+            # --- Section 1: Extract References (Global) ---
+            all_refs = []
+            for ref in root.xpath(".//ref"):
+                ref_text = " ".join(ref.itertext()).strip()
+                if ref_text:
+                    # Using clean_extra_whitespace for single-line reference formatting
+                    formatted_ref = clean_extra_whitespace(ref_text)
+                    if formatted_ref not in all_refs:
+                        all_refs.append(formatted_ref)
+
+            article.ArtReferences = "\n".join(all_refs)
+
+            # --- Section 2: Process Body Text (Clean and Filtered) ---
             body_node = root.find(".//body")
             if body_node is not None:
-                raw_text = " ".join(body_node.itertext())
-                cleaned = ProcessDataSrv._filter_figure_references(raw_text)
-                # --- بخش مربوط به Body ---
+                # Use deepcopy to safely remove nodes without affecting the original tree
+                temp_body = copy.deepcopy(body_node)
+
+                # Remove citation lists, tables, and figures from the body copy
+                unwanted_query = ".//ref-list | .//ref | .//table-wrap | .//fig | .//ack | .//notes"
+                for unwanted in temp_body.xpath(unwanted_query):
+                    parent = unwanted.getparent()
+                    if parent is not None:
+                        parent.remove(unwanted)
+
+                # Extract text and apply custom figure reference filter
+                raw_parts = []
+                for elem in temp_body.xpath(".//p | .//title"):
+                    txt = " ".join(elem.itertext()).strip()
+                    if txt:
+                        raw_parts.append(txt)
+                raw_body_text = "\n".join(raw_parts)
+                filtered_text = ProcessDataSrv._filter_figure_references(raw_body_text)
+
+                # Clean text while preserving paragraph structure
+                # 1. Core clean
                 cleaned_body = clean(
-                    raw_text,  # همان متنی که از _filter_figure_references گرفتی
+                    filtered_text,
                     extra_whitespace=False,
                     dashes=True,
                     bullets=False
                 )
-                # تمیزکاری نهایی برای بادی
-                article.ArtBody = re.sub(r'[ \t]+', ' ', cleaned_body)
-                article.ArtBody = re.sub(r'\n\s*\n', '\n\n', article.ArtBody).strip()
 
-            # References
-            refs = []
-            for ref in root.xpath(".//ref"):
-                ref_text = " ".join(ref.itertext()).strip()
-                if ref_text:
-                    refs.append(clean_extra_whitespace(ref_text))
-            article.ArtReferences = " || ".join(refs)
+                # 2. Standardize horizontal spacing
+                processed_body = re.sub(r'[ \t]+', ' ', cleaned_body)
+
+                # 3. Truncate hard-coded references
+                ref_stop_pattern = r'\n\s*(References|Reference List|BIBLIOGRAPHY|LITERATURE CITED)\s*\n'
+                split_parts = re.split(ref_stop_pattern, processed_body, maxsplit=1, flags=re.IGNORECASE)
+                processed_body = split_parts[0]
+
+                # 4. Final paragraph formatting (Double Newline for DB)
+                article.ArtBody = re.sub(r'\n+', '\n\n', processed_body).strip()
 
             # Funding
             article.FundingGrant = " | ".join([f.text.strip() for f in root.xpath(".//funding-source") if f.text])

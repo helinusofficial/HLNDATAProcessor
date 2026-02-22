@@ -7,6 +7,7 @@ from ArticleModel import ArticleModel
 import copy
 
 class ProcessDataSrv:
+    ref_stop_pattern = r'\n\s*(references|reference list|bibliography|literature cited|acknowledgments)\s*\n'
     animal_keywords = [
         # موش‌ها و رت‌ها
         "mouse", "mice", "rat", "sprague dawley", "wistar", "long evans",
@@ -45,6 +46,7 @@ class ProcessDataSrv:
 
     @staticmethod
     def process_file(file_path: str) -> ArticleModel:
+
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
         try:
@@ -250,7 +252,6 @@ class ProcessDataSrv:
             if body_node is not None:
                 temp_body = copy.deepcopy(body_node)
 
-                # 1. Heavy Blacklist (Remove structural noise first)
                 unwanted_query = """
                 .//ref-list | .//ref | .//table-wrap | .//fig | .//ack | .//notes |
                 .//sec[@sec-type='ref-list'] | .//sec[@sec-type='fn-group'] |
@@ -260,55 +261,35 @@ class ProcessDataSrv:
                     if node.getparent() is not None:
                         node.getparent().remove(node)
 
-                # 2. Scientific Whitelist
-                scientific_keywords = [
-                    "intro", "background", "material", "method", "patient",
-                    "study", "result", "discussion", "conclusion", "analysis", "experiment"
-                ]
-
-                allowed_sections = []
-                for sec in temp_body.xpath("./sec"):
-                    title_text = " ".join(sec.xpath("./title//text()")).strip().lower()
-                    if any(key in title_text for key in scientific_keywords):
-                        allowed_sections.append(sec)
-
-                # 3. Hybrid Strategy
-                if allowed_sections:
-                    # Use only whitelisted sections (Highest Quality)
-                    working_nodes = []
-                    for sec in allowed_sections:
-                        working_nodes.extend(sec.xpath(".//title | .//p"))
-                else:
-                    # Fallback: No standard sections found, use all cleaned paragraphs
-                    working_nodes = temp_body.xpath(".//p")
-
-                # 4. Extraction & Paragraph Structure
                 raw_parts = []
-                for elem in working_nodes:
-                    txt = " ".join(elem.itertext()).strip()
-                    if txt:
-                        raw_parts.append(txt)
+                for sec in temp_body.xpath(".//sec"):
+                    # Include title
+                    title_text = " ".join(sec.xpath("./title//text()")).strip()
+                    if title_text:
+                        raw_parts.append(title_text)
 
-                raw_body_text = "\n\n".join(raw_parts)
+                    for p in sec.xpath(".//p"):
+                        txt = " ".join(p.itertext()).strip()
+                        if txt:
+                            cleaned_p = clean(
+                                txt,
+                                extra_whitespace=True,
+                                dashes=True,
+                                bullets=False
+                            )
+                            cleaned_p = ProcessDataSrv._filter_figure_references(cleaned_p)
+                            cleaned_p = ProcessDataSrv._sanitize_string(cleaned_p)
+                            cleaned_p = re.sub(r'[ \t]+', ' ', cleaned_p).strip()
+                            if cleaned_p:
+                                raw_parts.append(cleaned_p)
 
-                # 5. Figure Ref Filtering & Cleaning
-                filtered_text = ProcessDataSrv._filter_figure_references(raw_body_text)
+                temp_full_text = "\r\n\r\n".join(raw_parts)
 
-                cleaned_body = clean(
-                    filtered_text,
-                    extra_whitespace=True,
-                    dashes=True,
-                    bullets=False
-                )
+                ref_stop_pattern = r'\r?\n\s*(references|reference list|bibliography|literature cited|acknowledgments)\s*\r?\n'
+                processed_text = re.split(ref_stop_pattern, temp_full_text, maxsplit=1, flags=re.IGNORECASE)[0]
 
-                # 6. Final Boundary Check
-                ref_stop_pattern = r'\n\s*(references|reference list|bibliography|literature cited|acknowledgments)\s*\n'
-                processed_body = re.split(ref_stop_pattern, cleaned_body, maxsplit=1, flags=re.IGNORECASE)[0]
-
-                # 7. SQL-Safe Sanitization
-                sanitized_body = ProcessDataSrv._sanitize_string(processed_body)
-                sanitized_body = re.sub(r'[ \t]+', ' ', sanitized_body)
-                article.ArtBody = re.sub(r'\n\s*\n+', '\n\n', sanitized_body).strip()
+                # Double newline normalization
+                article.ArtBody = re.sub(r'(\r?\n)+', '\r\n\r\n', processed_text.strip())
             else:
                 article.ArtBody = ""
 

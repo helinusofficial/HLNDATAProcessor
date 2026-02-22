@@ -1,23 +1,24 @@
-import pyodbc
-
+import pymssql
 
 class SqlServerSrv:
     def __init__(self, server='localhost', database='YourDatabase', username='sa', password='sa'):
-        # رشته اتصال مستقیم برای pyodbc
-        self.conn_str = (
-            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-            "TrustServerCertificate=yes;"
-        )
+        self.server = server
+        self.database = database
+        self.username = username
+        self.password = password
         self.conn = None
 
     def connect(self):
         try:
-            self.conn = pyodbc.connect(self.conn_str)
-            print("Connected directly via pyodbc.")
+            # اتصال مستقیم بدون نیاز به درایورهای کثیف ODBC
+            self.conn = pymssql.connect(
+                server=self.server,
+                user=self.username,
+                password=self.password,
+                database=self.database,
+                charset='utf8'
+            )
+            print("Connected via pymssql (Direct TDS).")
         except Exception as e:
             print(f"Connection failed: {e}")
             raise
@@ -28,40 +29,63 @@ class SqlServerSrv:
 
         cursor = self.conn.cursor()
 
-        # استاندارد ODBC CALL - دقیقا ۳۳ علامت سوال مطابق SP شما
-        sql = f"{{CALL {sp_name} (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)}}"
+        # تعریف صریح پارامترها برای جلوگیری از جابه‌جایی و حذف دیتای NVARCHAR(MAX)
+        sql = f"""
+        EXEC {sp_name} 
+            @ArtTitle=%s, @PubDate=%s, @ArtLanguage=%s, @Pmid=%s, @BankId=%s, @BankNo=%s, 
+            @ArtDoi=%s, @ArtType=%s, @JournalTitle=%s, @JournalAbbrev=%s, @ArtPublisher=%s, 
+            @ArtVolume=%s, @ArtIssue=%s, @ArtFpage=%s, @ArtPageRange=%s, @ArtAuthors=%s, 
+            @ArtKeywords=%s, @ArtPdfLink=%s, @ArtFileName=%s, @CorrEmail=%s, 
+            @ArtAbstract=%s, @ArtBody=%s, @MeshTerms=%s, @ArtReferences=%s, @ArtAffiliations=%s, 
+            @OrcidIds=%s, @FundingGrant=%s, @FundingId=%s, @EthicsStatement=%s, 
+            @CorrespondingAuthor=%s, @ArtLicense=%s, @PubHistory=%s, @CustomMeta=%s
+        """
 
-        # ترتیب پارامترها رو بر اساس آخرین SP که دادی چک کردم، دقیقه.
+        # آماده‌سازی دیتا (استفاده از or "" برای جلوگیری از ارسال NULL به ستون‌های اجباری)
         params = (
-            article.ArtTitle, article.PubDate, article.ArtLanguage, article.Pmid,
-            article.BankId, article.BankNo, article.ArtDoi, article.ArtType,
-            article.JournalTitle, article.JournalAbbrev, article.ArtPublisher,
-            article.ArtVolume, article.ArtIssue, article.ArtFpage, article.ArtPageRange,
-            article.ArtAuthors, article.ArtKeywords, article.ArtPdfLink, article.ArtFileName,
+            article.ArtTitle,
+            article.PubDate,
+            article.ArtLanguage,
+            article.Pmid,
+            article.BankId,
+            article.BankNo,
+            article.ArtDoi,
+            article.ArtType,
+            article.JournalTitle,
+            article.JournalAbbrev,
+            article.ArtPublisher,
+            article.ArtVolume,
+            article.ArtIssue,
+            article.ArtFpage,
+            article.ArtPageRange,
+            article.ArtAuthors,
+            article.ArtKeywords,
+            article.ArtPdfLink,
+            article.ArtFileName,
             article.CorrEmail,
-            # شروع فیلدهای سنگین (MAX)
-            article.ArtAbstract, article.ArtBody, article.MeshTerms,
-            article.ArtReferences, article.ArtAffiliations, article.OrcidIds,
-            article.FundingGrant, article.FundingId, article.EthicsStatement,
-            article.CorrespondingAuthor, article.ArtLicense, article.PubHistory,
-            article.CustomMeta
+            article.ArtAbstract or "",
+            article.ArtBody or "",      # بدنه اصلی مقاله (NVARCHAR MAX)
+            article.MeshTerms or "",
+            article.ArtReferences or "",
+            article.ArtAffiliations or "",
+            article.OrcidIds or "",
+            article.FundingGrant or "",
+            article.FundingId or "",
+            article.EthicsStatement or "",
+            article.CorrespondingAuthor or "",
+            article.ArtLicense or "",
+            article.PubHistory or "",
+            article.CustomMeta or ""
         )
 
         try:
             cursor.execute(sql, params)
 
-            # --- اصلاح مهم اینجاست ---
-            # اگر SP چندین مرحله اجرا داشته باشه، باید بریم سراغ نتیجه‌ای که شامل SELECT هست
+            # دریافت ID تولید شده (در صورتی که SP شما SELECT آخر داشته باشد)
             new_id = None
-
-            # رد کردن پیغام‌های Row count (مثل 1 row affected) برای رسیدن به SELECT اصلی
-            while cursor.description is None and cursor.nextset():
-                pass
-
-            if cursor.description:
-                row = cursor.fetchone()
-                if row:
-                    new_id = row[0]
+            row = cursor.fetchone()
+            if row:
+                new_id = row[0]
 
             self.conn.commit()
             return new_id
@@ -69,7 +93,10 @@ class SqlServerSrv:
         except Exception as e:
             if self.conn:
                 self.conn.rollback()
-            print(f"SP Execution Error: {e}")
+            print(f"Database Error: {e}")
+            # چاپ طول متن در صورت بروز خطا برای دیباگ نهایی
+            if article.ArtBody:
+                print(f"Failed to send Body. Length: {len(article.ArtBody)}")
             raise
         finally:
             cursor.close()

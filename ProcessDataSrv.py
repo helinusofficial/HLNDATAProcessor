@@ -109,9 +109,11 @@ class ProcessDataSrv:
             else:
                 article.ArtAbstract = ""
 
+            if article.ArtAbstract:
+                article.ArtAbstract = ProcessDataSrv._sanitize_string(article.ArtAbstract)
 
 
-            article.ArtKeywords = kwds
+            article.ArtKeywords =ProcessDataSrv._sanitize_string(kwds)
             article.MeshTerms = meshes
 
             article.JournalTitle = ProcessDataSrv._get_text(root, ".//journal-title")
@@ -199,7 +201,7 @@ class ProcessDataSrv:
                         all_refs.append(formatted_ref)
 
             article.ArtReferences = "\n".join(all_refs)
-
+            article.ArtReferences = ProcessDataSrv._sanitize_string(article.ArtReferences)
             # --- Section 2: Process Body Text (Clean and Filtered) ---
             body_node = root.find(".//body")
             if body_node is not None:
@@ -240,7 +242,10 @@ class ProcessDataSrv:
                 processed_body = split_parts[0]
 
                 # 4. Final paragraph formatting (Double Newline for DB)
-                article.ArtBody = re.sub(r'\n+', '\n\n', processed_body).strip()
+                # First clean toxics, then normalize horizontal spaces, then fix paragraph gaps
+                clean_body = ProcessDataSrv._sanitize_string(processed_body)
+                no_extra_tabs = re.sub(r'[ \t]+', ' ', clean_body)
+                article.ArtBody = re.sub(r'\n+', '\n\n', no_extra_tabs).strip()
 
             # Funding
             article.FundingGrant = " | ".join([f.text.strip() for f in root.xpath(".//funding-source") if f.text])
@@ -276,3 +281,12 @@ class ProcessDataSrv:
                     and len(s) < 65
             )
         ])
+
+    @staticmethod
+    def _sanitize_string(text: str) -> str:
+        if not text:
+            return ""
+        # حذف کاراکترهای غیرچاپ‌شونده (Null byte و غیره) که SQL را خراب می‌کنند
+        # فقط کاراکترهای بالای 31 (استاندارد) و خط جدید/تب رو نگه می‌داریم
+        clean_text = "".join(ch for ch in text if ord(ch) > 31 or ch in "\n\r\t")
+        return clean_text.strip()

@@ -24,7 +24,7 @@ def main():
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
-            if article_model.Animal:
+            if article_model and not article_model.NonTarget:
                 continue
 
             new_id = db.insert_with_stored_procedure('InsertData', article_model)

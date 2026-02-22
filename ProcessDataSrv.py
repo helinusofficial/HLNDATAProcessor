@@ -1,8 +1,9 @@
 import os
 import re
 from lxml import etree
-from datetime import datetime
 from unstructured.cleaners.core import clean, clean_extra_whitespace
+from datetime import datetime
+
 from ArticleModel import ArticleModel
 import copy
 
@@ -247,6 +248,7 @@ class ProcessDataSrv:
                             cleaned_p = ProcessDataSrv._filter_figure_references(cleaned_p)
                             cleaned_p = ProcessDataSrv._sanitize_string(cleaned_p)
                             cleaned_p = re.sub(r'[ \t]+', ' ', cleaned_p).strip()
+                            cleaned_p = ProcessDataSrv._normalize_references(cleaned_p)
                             if cleaned_p:
                                 raw_parts.append(cleaned_p)
 
@@ -303,3 +305,24 @@ class ProcessDataSrv:
         # فقط کاراکترهای بالای 31 (استاندارد) و خط جدید/تب رو نگه می‌داریم
         clean_text = "".join(ch for ch in text if ord(ch) > 31 or ch in "\n\r\t")
         return clean_text.strip()
+
+    @staticmethod
+    def _normalize_references(text: str) -> str:
+        def fix_ref(match):
+            ref = match.group()
+            # remove spaces inside brackets
+            ref = re.sub(r'\[\s*(.*?)\s*\]', r'[\1]', ref)
+            ref = re.sub(r'\(\s*(.*?)\s*\)', r'(\1)', ref)
+            # spaces around commas -> normalize
+            ref = re.sub(r'\s*,\s*', ',', ref)
+            # spaces around dash -> normalize
+            ref = re.sub(r'\s*-\s*', '-', ref)
+            # replace number sequences with space like "5 9" -> "5-9"
+            ref = re.sub(r'(\d+)\s+(\d+)', r'\1-\2', ref)
+            # multiple spaces -> single
+            ref = re.sub(r'\s+', ' ', ref)
+            return ref
+
+        # anything inside [] or ()
+        pattern = r'(\[[\w\-,\s.&]+\]|\([\w\-,\s.&]+\))'
+        return re.sub(pattern, fix_ref, text)

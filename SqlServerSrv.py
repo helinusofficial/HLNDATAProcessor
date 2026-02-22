@@ -10,7 +10,7 @@ class SqlServerSrv:
             f"DATABASE={database};"
             f"UID={username};"
             f"PWD={password};"
-            "TrustServerCertificate=no;"
+            "TrustServerCertificate=yes;"
         )
         self.conn = None
 

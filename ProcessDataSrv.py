@@ -96,7 +96,7 @@ class ProcessDataSrv:
             article.ArtLanguage = ProcessDataSrv._get_text(root, ".//language") or "en"
 
             pmid = ProcessDataSrv._get_text(root, ".//article-id[@pub-id-type='pmid']")
-            article.PmId = int(pmid) if pmid.isdigit() else None
+            article.Pmid = int(pmid) if pmid.isdigit() else None
 
             pmc = ProcessDataSrv._get_text(root, ".//article-id[@pub-id-type='pmc']")
             if pmc:

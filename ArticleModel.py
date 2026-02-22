@@ -10,7 +10,7 @@ class ArticleModel:
     ArtAbstract: str = ""
     PubDate: datetime = datetime.min
     ArtLanguage: str = ""
-    PmId: Optional[int] = None
+    Pmid: Optional[int] = None
     BankId: Optional[int] = None
     BankNo: int = 0
     ArtDoi: str = ""

@@ -86,32 +86,60 @@ class ProcessDataSrv:
             # --- Stage 3: Full Metadata Extraction ---
             article.ArtTitle = title
 
-            abstract_node = root.find(".//abstract")
-            if abstract_node is not None:
-                abs_parts = []
-                # فقط دنبال p می‌گردیم و titleها رو حذف می‌کنیم تا کلمه Abstract نیاد
-                for p in abstract_node.xpath(".//p"):
-                    txt = " ".join(p.itertext()).strip()
-                    if txt:
-                        abs_parts.append(txt)
+            abstract_nodes = root.xpath(
+                ".//abstract[not(@abstract-type='graphical') and not(@abstract-type='toc')]"
+            )
 
-                # چسباندن پاراگراف‌ها
+            if abstract_nodes:
+                main_abstract = abstract_nodes[0]
+
+                abs_parts = []
+
+                # اگر structured abstract باشد
+                structured_secs = main_abstract.xpath("./sec")
+
+                if structured_secs:
+                    for sec in structured_secs:
+                        title_text = " ".join(sec.xpath("./title//text()")).strip()
+                        paragraphs = []
+                        for p in sec.xpath(".//p"):
+                            txt = " ".join(p.itertext()).strip()
+                            if txt:
+                                paragraphs.append(txt)
+
+                        if paragraphs:
+                            section_text = "\n".join(paragraphs)
+                            if title_text:
+                                abs_parts.append(f"{title_text}\n{section_text}")
+                            else:
+                                abs_parts.append(section_text)
+                else:
+                    # abstract ساده
+                    for p in main_abstract.xpath(".//p"):
+                        txt = " ".join(p.itertext()).strip()
+                        if txt:
+                            abs_parts.append(txt)
+
                 raw_abstract = "\n\n".join(abs_parts)
 
-                # تمیزکاری
-                cleaned_abs = clean(raw_abstract, extra_whitespace=False, dashes=True, bullets=True)
+                # Clean
+                cleaned_abs = clean(
+                    raw_abstract,
+                    extra_whitespace=False,
+                    dashes=True,
+                    bullets=False
+                )
 
-                # حذف کلمات کلیدی اگر به ته متن چسبیده باشن
-                # معمولاً کلمات کلیدی با Keywords: یا Key Words: شروع می‌شن
-                final_abs = re.split(r'\n?\s*Keywords?:', cleaned_abs, flags=re.IGNORECASE)[0]
+                cleaned_abs = re.split(
+                    r'\n?\s*(keywords?|key words?)\s*:',
+                    cleaned_abs,
+                    flags=re.IGNORECASE
+                )[0]
 
-                article.ArtAbstract = re.sub(r'[ \t]+', ' ', final_abs).strip()
+                cleaned_abs = re.sub(r'[ \t]+', ' ', cleaned_abs)
+                article.ArtAbstract = ProcessDataSrv._sanitize_string(cleaned_abs).strip()
             else:
                 article.ArtAbstract = ""
-
-            if article.ArtAbstract:
-                article.ArtAbstract = ProcessDataSrv._sanitize_string(article.ArtAbstract)
-
 
             article.ArtKeywords =ProcessDataSrv._sanitize_string(kwds)
             article.MeshTerms = meshes
@@ -205,27 +233,69 @@ class ProcessDataSrv:
             # --- Section 2: Process Body Text (Clean and Filtered) ---
             body_node = root.find(".//body")
             if body_node is not None:
-                # Use deepcopy to safely remove nodes without affecting the original tree
                 temp_body = copy.deepcopy(body_node)
 
-                # Remove citation lists, tables, and figures from the body copy
-                unwanted_query = ".//ref-list | .//ref | .//table-wrap | .//fig | .//ack | .//notes"
+                # --- Step 1: Remove structural noise ---
+                unwanted_query = """
+                .//ref-list |
+                .//ref |
+                .//table-wrap |
+                .//fig |
+                .//ack |
+                .//notes |
+                .//sec[@sec-type='ref-list'] |
+                .//sec[@sec-type='fn-group'] |
+                .//sec[@sec-type='supplementary-material']
+                """
                 for unwanted in temp_body.xpath(unwanted_query):
                     parent = unwanted.getparent()
                     if parent is not None:
                         parent.remove(unwanted)
 
-                # Extract text and apply custom figure reference filter
+                # --- Step 2: Whitelist scientific sections only ---
+                scientific_keywords = [
+                    "intro",
+                    "background",
+                    "material",
+                    "method",
+                    "patient",
+                    "study",
+                    "result",
+                    "discussion",
+                    "conclusion",
+                    "analysis",
+                    "experiment"
+                ]
+
+                valid_sections = []
+
+                for sec in temp_body.xpath("./sec"):  # فقط سکشن‌های سطح اول
+                    title_text = " ".join(sec.xpath("./title//text()")).strip().lower()
+
+                    if any(key in title_text for key in scientific_keywords):
+                        valid_sections.append(sec)
+
+                # --- Step 3: Fallback اگر مقاله سکشن استاندارد نداشت ---
+                if not valid_sections:
+                    working_nodes = temp_body.xpath(".//p")
+                else:
+                    working_nodes = []
+                    for sec in valid_sections:
+                        working_nodes.extend(sec.xpath(".//title | .//p"))
+
+                # --- Step 4: Extract text ---
                 raw_parts = []
-                for elem in temp_body.xpath(".//p | .//title"):
+                for elem in working_nodes:
                     txt = " ".join(elem.itertext()).strip()
                     if txt:
                         raw_parts.append(txt)
+
                 raw_body_text = "\n".join(raw_parts)
+
+                # --- Step 5: Remove short fig/table references ---
                 filtered_text = ProcessDataSrv._filter_figure_references(raw_body_text)
 
-                # Clean text while preserving paragraph structure
-                # 1. Core clean
+                # --- Step 6: Clean text ---
                 cleaned_body = clean(
                     filtered_text,
                     extra_whitespace=False,
@@ -233,18 +303,15 @@ class ProcessDataSrv:
                     bullets=False
                 )
 
-                # 2. Standardize horizontal spacing
                 processed_body = re.sub(r'[ \t]+', ' ', cleaned_body)
 
-                # 3. Truncate hard-coded references
-                ref_stop_pattern = r'\n\s*(References|Reference List|BIBLIOGRAPHY|LITERATURE CITED)\s*\n'
-                split_parts = re.split(ref_stop_pattern, processed_body, maxsplit=1, flags=re.IGNORECASE)
-                processed_body = split_parts[0]
+                # Remove accidental reference section if slipped through
+                ref_stop_pattern = r'\n\s*(references|reference list|bibliography|literature cited)\s*\n'
+                processed_body = re.split(ref_stop_pattern, processed_body, maxsplit=1, flags=re.IGNORECASE)[0]
 
-                # 4. Final paragraph formatting (Double Newline for DB)
-                # First clean toxics, then normalize horizontal spaces, then fix paragraph gaps
                 clean_body = ProcessDataSrv._sanitize_string(processed_body)
                 no_extra_tabs = re.sub(r'[ \t]+', ' ', clean_body)
+
                 article.ArtBody = re.sub(r'\n+', '\n\n', no_extra_tabs).strip()
 
             # Funding

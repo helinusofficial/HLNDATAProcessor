@@ -85,16 +85,14 @@ class ProcessDataSrv:
 
             # --- Stage 3: Full Metadata Extraction ---
             article.ArtTitle = title
-            article.ArtAbstract = clean(
+            cleaned_abstract = clean(
                 raw_abstract,
-                extra_whitespace=False,  # حفظ ساختار بخش‌بندی ابسترکت
+                extra_whitespace=False,
                 dashes=True,
-                bullets=True,  # در ابسترکت Bullets معمولاً مهم هستند
-                trailing_whitespace=True
+                bullets=True
             )
-
-            # تمیز کردن فاصله‌های اضافی (بدون حذف اینترها)
-            article.ArtAbstract = re.sub(r'[ \t]+', ' ', article.ArtAbstract)
+            # حذف فضاهای خالی مزاحم با regex (جایگزین ایمن trailing_whitespace)
+            article.ArtAbstract = re.sub(r'[ \t]+', ' ', cleaned_abstract)
             article.ArtAbstract = re.sub(r'\n\s*\n', '\n\n', article.ArtAbstract).strip()
             article.ArtKeywords = kwds
             article.MeshTerms = meshes
@@ -178,13 +176,15 @@ class ProcessDataSrv:
             if body_node is not None:
                 raw_text = " ".join(body_node.itertext())
                 cleaned = ProcessDataSrv._filter_figure_references(raw_text)
-                article.ArtBody = clean(
-                    cleaned,
-                    extra_whitespace=False,  # این را False بگذار تا پاراگراف‌ها نچسبند
+                # --- بخش مربوط به Body ---
+                cleaned_body = clean(
+                    raw_text,  # همان متنی که از _filter_figure_references گرفتی
+                    extra_whitespace=False,
                     dashes=True,
-                    bullets=False,
-                    trailing_whitespace=True  # فضاهای خالی آخر خط را تمیز می‌کند اما خط را حذف نمی‌کند
+                    bullets=False
                 )
+                # تمیزکاری نهایی برای بادی
+                article.ArtBody = re.sub(r'[ \t]+', ' ', cleaned_body)
                 article.ArtBody = re.sub(r'\n\s*\n', '\n\n', article.ArtBody).strip()
 
             # References

@@ -70,7 +70,7 @@ def main():
                 continue
 
             logging.info(f"Abstract: {article_model.ArtAbstract}")
-            logging.info(f"Abstract: {article_model.ArtBody}")
+            logging.info(f"Body: {article_model.ArtBody}")
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
                 logging.error(f"Error processing file {path}")

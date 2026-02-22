@@ -54,7 +54,6 @@ def main():
     for root, dirs, files in os.walk(input_folder):
         for f in files:
             if f.endswith('.xml'):
-                # root مسیر پوشه‌ای است که فایل در آن پیدا شده
                 full_path = os.path.join(root, f)
                 file_paths.append(full_path)
 

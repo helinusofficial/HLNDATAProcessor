@@ -13,9 +13,8 @@ import torch
 def main():
     # Output and logging
     start_time = time.time()
-    logging.info(f"Started on: {datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
 
-    code_name = "train_tinyllm"
+    code_name = "process"
     base_output_path = r"/"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -38,13 +37,17 @@ def main():
     random.seed(random_state)
     np.random.seed(random_state)
     torch.manual_seed(random_state)
-
+    logging.info(f"Started on: {datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
 
     input_folder = r"D:\a"
+    logging.info("Connecting to SQl Server...")
     db = SqlServerSrv(server='.',database='HLNLLMBreastDB', username='sa', password='sa')
     db.connect()
+    logging.info("Connected")
+    logging.info("Start to reading files....")
+
     if not os.path.exists(input_folder):
-        print(f"Error: Folder '{input_folder}' not found!")
+        logging.error(f"Error: Folder '{input_folder}' not found!")
         return
 
     file_paths = [
@@ -54,28 +57,28 @@ def main():
     ]
 
     total_files = len(file_paths)
-    print(f"Total files found: {total_files}")
-    print("Processing started linearly...")
+    logging.info(f"Total files found: {total_files}")
+    logging.info("Processing started linearly...")
 
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
             if article_model and article_model.NonTarget:
-                print(f"NonTarget file {article_model.ArtFileName}")
+                logging.info(f"NonTarget file {article_model.ArtFileName}")
                 continue
 
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
-                print(f"Error processing file {path}")
+                logging.error(f"Error processing file {path}")
 
             if index % 100 == 0 or index == total_files:
-                print(f"[{index}/{total_files}] Processed: {article_model.ArtTitle[:50]}...")
+                logging.info(f"[{index}/{total_files}] Processed: {article_model.ArtTitle[:50]}...")
 
         except Exception as e:
-            print(f"Error processing file {path}: {str(e)}")
+            logging.error(f"Error processing file {path}: {str(e)}")
             continue
 
-    print("--- Processing Completed Successfully ---")
+    logging.info("--- Processing Completed Successfully ---")
     end_time = time.time()
     elapsed = end_time - start_time
     minutes = int(elapsed // 60)

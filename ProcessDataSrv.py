@@ -53,13 +53,44 @@ class ProcessDataSrv:
             article.BankNo = 1
             article.ArtFileName = os.path.basename(file_path)
 
+            # --- Stage 1: Quick Extraction for Filtering ---
+            title = ProcessDataSrv._get_text(root, ".//article-title")
+            abstract_node = root.find(".//abstract")
+            raw_abstract = " ".join(abstract_node.itertext()) if abstract_node is not None else ""
+            kwds = ", ".join([k.text.strip() for k in root.xpath(".//kwd") if k.text])
+            meshes = " | ".join([m.text.strip() for m in root.xpath(".//mesh-heading/descriptor-name") if m.text])
+
+            # --- Stage 2: Early Animal/Human Filter ---
+            check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
+
+            has_human = any(k in check_zone for k in ProcessDataSrv.human_indicators) or \
+                        any(c in check_zone for c in ProcessDataSrv.human_breast_cells) or \
+                        "humans" in meshes.lower()
+
+            has_animal = any(k in check_zone for k in ProcessDataSrv.animal_keywords) or \
+                         any(c in check_zone for c in ProcessDataSrv.animal_breast_cells)
+
+            if has_human:
+                article.Animal = False
+                article.StudyType = "Human"
+            elif has_animal:
+                article.Animal = True
+                article.StudyType = "Animal"
+                return article
+            else:
+                article.StudyType = "Unknown/Other"
+
+            # --- Stage 3: Full Metadata Extraction (Human Only) ---
+            article.ArtTitle = title
+            article.ArtAbstract = clean(clean_extra_whitespace(raw_abstract)).strip()
+            article.ArtKeywords = kwds
+            article.MeshTerms = meshes
+
             article.JournalTitle = ProcessDataSrv._get_text(root, ".//journal-title")
             article.JournalAbbrev = ProcessDataSrv._get_text(
                 root, ".//journal-id[@journal-id-type='nlm-ta'] | .//abbrev-journal-title"
             )
             article.ArtPublisher = ProcessDataSrv._get_text(root, ".//publisher-name")
-
-            article.ArtTitle = ProcessDataSrv._get_text(root, ".//article-title")
             article.ArtDoi = ProcessDataSrv._get_text(root, ".//article-id[@pub-id-type='doi']")
             article.ArtType = root.get("article-type", "")
             article.ArtLanguage = ProcessDataSrv._get_text(root, ".//language") or "en"
@@ -95,6 +126,7 @@ class ProcessDataSrv:
                     except (ValueError, TypeError):
                         pass
 
+            # Authors, Emails, Orcids
             authors = []
             orcids = []
             for auth in root.xpath(".//contrib[@contrib-type='author']"):
@@ -118,47 +150,17 @@ class ProcessDataSrv:
             article.ArtAuthors = ", ".join(authors)
             article.OrcidIds = " || ".join(orcids)
 
+            # Affiliations
             affs = [clean_extra_whitespace(" ".join(aff.itertext())) for aff in root.xpath(".//aff")]
             article.ArtAffiliations = " | ".join(filter(None, affs))
 
-            keywords = [k.text.strip() for k in root.xpath(".//kwd") if k.text]
-            article.ArtKeywords = ", ".join(keywords)
-
-            mesh_list = [m.text.strip() for m in root.xpath(".//mesh-heading/descriptor-name") if m.text]
-            article.MeshTerms = " | ".join(mesh_list)
-
+            # License & Ethics
             article.ArtLicense = ProcessDataSrv._get_text(root, ".//license//p")
-
             ethics = root.xpath(".//notes[@notes-type='ethics-statement'] | .//fn[@fn-type='ethics-statement']")
             if ethics:
                 article.EthicsStatement = " ".join(ethics[0].itertext()).strip()
 
-            abstract_node = root.find(".//abstract")
-            if abstract_node is not None:
-                raw_abstract = " ".join(abstract_node.itertext())
-                article.ArtAbstract = clean(clean_extra_whitespace(raw_abstract)).strip()
-            else:
-                article.ArtAbstract = ""
-
-            # Animal/Human Detection Logic
-            check_zone = f"{article.ArtTitle} {article.ArtAbstract} {article.ArtKeywords} {article.MeshTerms}".lower()
-            has_human = any(k in check_zone for k in ProcessDataSrv.human_indicators) or \
-                        any(c in check_zone for c in ProcessDataSrv.human_breast_cells) or \
-                        "humans" in article.MeshTerms.lower()
-
-            has_animal = any(k in check_zone for k in ProcessDataSrv.animal_keywords) or \
-                         any(c in check_zone for c in ProcessDataSrv.animal_breast_cells)
-
-            if has_human:
-                article.Animal = False
-                article.StudyType = "Human"
-            elif has_animal:
-                article.Animal = True
-                article.StudyType = "Animal"
-                return article
-            else:
-                article.StudyType = "Unknown/Other"
-
+            # Body
             body_node = root.find(".//body")
             if body_node is not None:
                 raw_text = " ".join(body_node.itertext())
@@ -166,6 +168,7 @@ class ProcessDataSrv:
                 article.ArtBody = clean(cleaned, extra_whitespace=True, dashes=True, bullets=False)
                 article.ArtBody = clean_extra_whitespace(article.ArtBody).strip()
 
+            # References
             refs = []
             for ref in root.xpath(".//ref"):
                 ref_text = " ".join(ref.itertext()).strip()
@@ -173,10 +176,12 @@ class ProcessDataSrv:
                     refs.append(clean_extra_whitespace(ref_text))
             article.ArtReferences = " || ".join(refs)
 
+            # Funding
             article.FundingGrant = " | ".join([f.text.strip() for f in root.xpath(".//funding-source") if f.text])
             article.FundingId = " | ".join([f.text.strip() for f in root.xpath(".//award-id") if f.text])
 
             article.ArtPdfLink = ProcessDataSrv._get_text(root, ".//self-uri[@content-type='pdf']/@href")
+
         except Exception as e:
             print(f"Error in ProcessDataSrv: {file_path} -> {e}")
             return None

@@ -15,7 +15,7 @@ def main():
     start_time = time.time()
 
     code_name = "process"
-    base_output_path = r"/"
+    base_output_path = r"./"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")
@@ -50,11 +50,13 @@ def main():
         logging.error(f"Error: Folder '{input_folder}' not found!")
         return
 
-    file_paths = [
-        os.path.join(input_folder, f)
-        for f in os.listdir(input_folder)
-        if f.endswith('.xml')
-    ]
+    file_paths = []
+    for root, dirs, files in os.walk(input_folder):
+        for f in files:
+            if f.endswith('.xml'):
+                # root مسیر پوشه‌ای است که فایل در آن پیدا شده
+                full_path = os.path.join(root, f)
+                file_paths.append(full_path)
 
     total_files = len(file_paths)
     logging.info(f"Total files found: {total_files}")
@@ -67,6 +69,8 @@ def main():
                 logging.info(f"NonTarget file {article_model.ArtFileName}")
                 continue
 
+            logging.info(f"Abstract: {article_model.ArtAbstract}")
+            logging.info(f"Abstract: {article_model.ArtBody}")
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
                 logging.error(f"Error processing file {path}")
@@ -78,6 +82,7 @@ def main():
             logging.error(f"Error processing file {path}: {str(e)}")
             continue
 
+    db.close()
     logging.info("--- Processing Completed Successfully ---")
     end_time = time.time()
     elapsed = end_time - start_time

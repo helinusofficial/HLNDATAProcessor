@@ -85,7 +85,17 @@ class ProcessDataSrv:
 
             # --- Stage 3: Full Metadata Extraction ---
             article.ArtTitle = title
-            article.ArtAbstract = clean(clean_extra_whitespace(raw_abstract)).strip()
+            article.ArtAbstract = clean(
+                raw_abstract,
+                extra_whitespace=False,  # حفظ ساختار بخش‌بندی ابسترکت
+                dashes=True,
+                bullets=True,  # در ابسترکت Bullets معمولاً مهم هستند
+                trailing_whitespace=True
+            )
+
+            # تمیز کردن فاصله‌های اضافی (بدون حذف اینترها)
+            article.ArtAbstract = re.sub(r'[ \t]+', ' ', article.ArtAbstract)
+            article.ArtAbstract = re.sub(r'\n\s*\n', '\n\n', article.ArtAbstract).strip()
             article.ArtKeywords = kwds
             article.MeshTerms = meshes
 
@@ -168,8 +178,14 @@ class ProcessDataSrv:
             if body_node is not None:
                 raw_text = " ".join(body_node.itertext())
                 cleaned = ProcessDataSrv._filter_figure_references(raw_text)
-                article.ArtBody = clean(cleaned, extra_whitespace=True, dashes=True, bullets=False)
-                article.ArtBody = clean_extra_whitespace(article.ArtBody).strip()
+                article.ArtBody = clean(
+                    cleaned,
+                    extra_whitespace=False,  # این را False بگذار تا پاراگراف‌ها نچسبند
+                    dashes=True,
+                    bullets=False,
+                    trailing_whitespace=True  # فضاهای خالی آخر خط را تمیز می‌کند اما خط را حذف نمی‌کند
+                )
+                article.ArtBody = re.sub(r'\n\s*\n', '\n\n', article.ArtBody).strip()
 
             # References
             refs = []

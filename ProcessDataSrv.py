@@ -93,68 +93,35 @@ class ProcessDataSrv:
             )
 
             if abstract_nodes:
-                all_abs_text = []
+                all_paragraphs = []
 
                 for main_abstract in abstract_nodes:
-                    # --- Step 1: Handle structured abstracts ---
-                    structured_secs = main_abstract.xpath("./sec")
+                    # --- Step 1: Collect paragraphs separately ---
+                    paragraphs = main_abstract.xpath(".//p")
+                    if not paragraphs:
+                        # fallback: raw text if no <p> exists
+                        raw_txt = " ".join(main_abstract.itertext()).strip()
+                        if raw_txt:
+                            paragraphs = [main_abstract]
 
-                    if structured_secs:
-                        for sec in structured_secs:
-                            # Section title uppercase for LLM prominence
-                            title_text = " ".join(sec.xpath("./title//text()")).strip().upper()
+                    for p in paragraphs:
+                        # Step 2: Clean each paragraph individually
+                        txt = " ".join(p.itertext()).strip()
+                        if txt:
+                            cleaned_p = clean(txt, extra_whitespace=True, dashes=True, bullets=False)
+                            cleaned_p = ProcessDataSrv._filter_figure_references(cleaned_p)
+                            cleaned_p = ProcessDataSrv._sanitize_string(cleaned_p)
+                            cleaned_p = re.sub(r'[ \t]+', ' ', cleaned_p).strip()
+                            # --- Step 2.5: Remove Keywords section from this paragraph ---
+                            cleaned_p = re.split(r'\r?\n\s*(keywords?|key words?)\s*:', cleaned_p, flags=re.IGNORECASE)[
+                                0].strip()
 
-                            # Collect all paragraphs in this section
-                            paragraphs = [
-                                " ".join(p.itertext()).strip()
-                                for p in sec.xpath(".//p")
-                                if " ".join(p.itertext()).strip()
-                            ]
+                            if cleaned_p:
+                                # Step 3: Append Windows-style separator (\r\n\r\n)
+                                all_paragraphs.append(cleaned_p)
 
-                            if paragraphs:
-                                section_content = "\n\n".join(paragraphs)
-                                if title_text:
-                                    all_abs_text.append(f"{title_text}\n{section_content}")
-                                else:
-                                    all_abs_text.append(section_content)
-                    else:
-                        # --- Step 2: Handle simple abstracts ---
-                        paragraphs = [
-                            " ".join(p.itertext()).strip()
-                            for p in main_abstract.xpath(".//p")
-                            if " ".join(p.itertext()).strip()
-                        ]
-                        if paragraphs:
-                            all_abs_text.append("\n\n".join(paragraphs))
-                        else:
-                            # Fallback for abstracts without <p> tags
-                            raw_txt = " ".join(main_abstract.itertext()).strip()
-                            if raw_txt:
-                                all_abs_text.append(raw_txt)
-
-                # --- Step 3: Join all sections with clean separator ---
-                # Using a subtle separator for LLM/RAG clarity
-                raw_abstract = "\n\n---\n\n".join(all_abs_text)
-
-                # --- Step 4: Clean text ---
-                cleaned_abs = clean(
-                    raw_abstract,
-                    extra_whitespace=True,  # better for RAG quality
-                    dashes=True,
-                    bullets=False
-                )
-
-                # --- Step 5: Remove Keywords section at the end ---
-                cleaned_abs = re.split(
-                    r'\n?\s*(keywords?|key words?)\s*:',
-                    cleaned_abs,
-                    flags=re.IGNORECASE
-                )[0]
-
-                # --- Step 6: SQL-safe sanitization ---
-                sanitized_abs = ProcessDataSrv._sanitize_string(cleaned_abs)
-                sanitized_abs = re.sub(r'[ \t]+', ' ', sanitized_abs)
-                article.ArtAbstract = re.sub(r'\n\s*\n+', '\n\n', sanitized_abs).strip()
+                # Step 4: Join all paragraphs into one text
+                final_text = "\r\n\r\n".join(all_paragraphs)
             else:
                 article.ArtAbstract = ""
 

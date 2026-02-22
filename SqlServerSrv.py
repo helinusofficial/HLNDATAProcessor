@@ -49,7 +49,12 @@ class SqlServerSrv:
             articleModel.CustomMeta,
             articleModel.ArtReferences,
             articleModel.ArtAbstract,
-            articleModel.ArtBody
+            articleModel.ArtBody,
+            articleModel.CorrEmail,
+            articleModel.MeshTerms,
+            articleModel.FundingId,
+            articleModel.EthicsStatement,
+            articleModel.OrcidIds
         )
 
         with self.engine.connect() as conn:

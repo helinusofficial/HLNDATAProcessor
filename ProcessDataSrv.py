@@ -85,15 +85,32 @@ class ProcessDataSrv:
 
             # --- Stage 3: Full Metadata Extraction ---
             article.ArtTitle = title
-            cleaned_abstract = clean(
-                raw_abstract,
-                extra_whitespace=False,
-                dashes=True,
-                bullets=True
-            )
-            # حذف فضاهای خالی مزاحم با regex (جایگزین ایمن trailing_whitespace)
-            article.ArtAbstract = re.sub(r'[ \t]+', ' ', cleaned_abstract)
-            article.ArtAbstract = re.sub(r'\n\s*\n', '\n\n', article.ArtAbstract).strip()
+
+            abstract_node = root.find(".//abstract")
+            if abstract_node is not None:
+                abs_parts = []
+                # فقط دنبال p می‌گردیم و titleها رو حذف می‌کنیم تا کلمه Abstract نیاد
+                for p in abstract_node.xpath(".//p"):
+                    txt = " ".join(p.itertext()).strip()
+                    if txt:
+                        abs_parts.append(txt)
+
+                # چسباندن پاراگراف‌ها
+                raw_abstract = "\n\n".join(abs_parts)
+
+                # تمیزکاری
+                cleaned_abs = clean(raw_abstract, extra_whitespace=False, dashes=True, bullets=True)
+
+                # حذف کلمات کلیدی اگر به ته متن چسبیده باشن
+                # معمولاً کلمات کلیدی با Keywords: یا Key Words: شروع می‌شن
+                final_abs = re.split(r'\n?\s*Keywords?:', cleaned_abs, flags=re.IGNORECASE)[0]
+
+                article.ArtAbstract = re.sub(r'[ \t]+', ' ', final_abs).strip()
+            else:
+                article.ArtAbstract = ""
+
+
+
             article.ArtKeywords = kwds
             article.MeshTerms = meshes
 

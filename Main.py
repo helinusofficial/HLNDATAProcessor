@@ -69,13 +69,6 @@ def main():
                 logging.info(f"NonTarget file {article_model.ArtFileName}")
                 continue
 
-            logging.info(f"Abstract: {article_model.ArtAbstract}")
-            paragraphs = article_model.ArtBody.split('\n\n')
-            logging.info(f"File: {article_model.ArtFileName} | Paragraphs detected: {len(paragraphs)}")
-            # فقط برای تست در لاگ
-            test_display = article_model.ArtBody.replace('\n\n', '\n[P-SEP]\n')
-            logging.info(f"Body Preview:\n{test_display[:1000]}")
-
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
                 logging.error(f"Error processing file {path}")

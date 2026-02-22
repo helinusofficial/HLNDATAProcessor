@@ -1,9 +1,45 @@
 import os
 from ProcessDataSrv import ProcessDataSrv
 from SqlServerSrv import SqlServerSrv
-
+from datetime import datetime
+import os
+import sys
+import time
+import numpy as np
+import random
+import logging
+import torch
 
 def main():
+    # Output and logging
+    start_time = time.time()
+    logging.info(f"Started on: {datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+
+    code_name = "train_tinyllm"
+    base_output_path = r"/"
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")
+    os.makedirs(output_path, exist_ok=True)
+    log_file_path = os.path.join(output_path, f"{code_name}_Log.txt")
+
+    sys.stdout.reconfigure(encoding='utf-8')
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    file_handler = logging.FileHandler(log_file_path, mode='w', encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
+    logger.addHandler(console_handler)
+    random_state = 102
+    random.seed(random_state)
+    np.random.seed(random_state)
+    torch.manual_seed(random_state)
+
+
     input_folder = r"D:\a"
     db = SqlServerSrv(server='.',database='HLNLLMBreastDB', username='sa', password='sa')
     db.connect()
@@ -40,7 +76,11 @@ def main():
             continue
 
     print("--- Processing Completed Successfully ---")
-
+    end_time = time.time()
+    elapsed = end_time - start_time
+    minutes = int(elapsed // 60)
+    seconds = elapsed % 60
+    logging.info(f"Execution time: {minutes}:{seconds:.2f}")
 
 if __name__ == "__main__":
     main()

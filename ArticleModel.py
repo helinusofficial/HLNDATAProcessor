@@ -38,7 +38,7 @@ class ArticleModel:
     OrcidIds: str = ""            # فیلد جدید (لیست ORCIDها)
     CustomMeta: str = ""
     ArtReferences: str = ""
-    Animal: bool = False
+    NonTarget: bool = False
 
     def to_dict(self):
         return self.__dict__

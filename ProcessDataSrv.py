@@ -60,8 +60,11 @@ class ProcessDataSrv:
             kwds = ", ".join([k.text.strip() for k in root.xpath(".//kwd") if k.text])
             meshes = " | ".join([m.text.strip() for m in root.xpath(".//mesh-heading/descriptor-name") if m.text])
 
-            # --- Stage 2: Early Animal/Human Filter ---
             check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
+
+            # --- Stage 2: Strict Filtering (Human Breast Only) ---
+            is_breast_related = any(x in check_zone for x in ["breast", "mammary"]) or \
+                                any(c in check_zone for c in ProcessDataSrv.human_breast_cells)
 
             has_human = any(k in check_zone for k in ProcessDataSrv.human_indicators) or \
                         any(c in check_zone for c in ProcessDataSrv.human_breast_cells) or \
@@ -70,17 +73,14 @@ class ProcessDataSrv:
             has_animal = any(k in check_zone for k in ProcessDataSrv.animal_keywords) or \
                          any(c in check_zone for c in ProcessDataSrv.animal_breast_cells)
 
-            if has_human:
-                article.Animal = False
-                article.StudyType = "Human"
-            elif has_animal:
-                article.Animal = True
-                article.StudyType = "Animal"
+            # Decision: Discard if not breast related OR if it's strictly animal without human evidence
+            if not is_breast_related or (has_animal and not has_human):
+                article.NonTarget = True
                 return article
-            else:
-                article.StudyType = "Unknown/Other"
 
-            # --- Stage 3: Full Metadata Extraction (Human Only) ---
+            article.NonTarget = False
+
+            # --- Stage 3: Full Metadata Extraction ---
             article.ArtTitle = title
             article.ArtAbstract = clean(clean_extra_whitespace(raw_abstract)).strip()
             article.ArtKeywords = kwds
@@ -126,7 +126,6 @@ class ProcessDataSrv:
                     except (ValueError, TypeError):
                         pass
 
-            # Authors, Emails, Orcids
             authors = []
             orcids = []
             for auth in root.xpath(".//contrib[@contrib-type='author']"):
@@ -156,6 +155,7 @@ class ProcessDataSrv:
 
             # License & Ethics
             article.ArtLicense = ProcessDataSrv._get_text(root, ".//license//p")
+
             ethics = root.xpath(".//notes[@notes-type='ethics-statement'] | .//fn[@fn-type='ethics-statement']")
             if ethics:
                 article.EthicsStatement = " ".join(ethics[0].itertext()).strip()

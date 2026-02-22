@@ -91,53 +91,58 @@ class ProcessDataSrv:
             )
 
             if abstract_nodes:
-                main_abstract = abstract_nodes[0]
+                all_abs_text = []
 
-                abs_parts = []
+                # Process all abstract nodes (usually just one, but safer)
+                for main_abstract in abstract_nodes:
+                    # Step 1: Handle Structured Abstracts
+                    structured_secs = main_abstract.xpath("./sec")
 
-                # اگر structured abstract باشد
-                structured_secs = main_abstract.xpath("./sec")
+                    if structured_secs:
+                        for sec in structured_secs:
+                            title_text = " ".join(sec.xpath("./title//text()")).strip()
+                            paragraphs = [" ".join(p.itertext()).strip() for p in sec.xpath(".//p") if
+                                          " ".join(p.itertext()).strip()]
 
-                if structured_secs:
-                    for sec in structured_secs:
-                        title_text = " ".join(sec.xpath("./title//text()")).strip()
-                        paragraphs = []
-                        for p in sec.xpath(".//p"):
-                            txt = " ".join(p.itertext()).strip()
-                            if txt:
-                                paragraphs.append(txt)
-
+                            if paragraphs:
+                                section_content = "\n".join(paragraphs)
+                                if title_text:
+                                    all_abs_text.append(f"{title_text.upper()}\n{section_content}")
+                                else:
+                                    all_abs_text.append(section_content)
+                    else:
+                        # Step 2: Handle Simple Abstracts
+                        paragraphs = [" ".join(p.itertext()).strip() for p in main_abstract.xpath(".//p") if
+                                      " ".join(p.itertext()).strip()]
                         if paragraphs:
-                            section_text = "\n".join(paragraphs)
-                            if title_text:
-                                abs_parts.append(f"{title_text}\n{section_text}")
-                            else:
-                                abs_parts.append(section_text)
-                else:
-                    # abstract ساده
-                    for p in main_abstract.xpath(".//p"):
-                        txt = " ".join(p.itertext()).strip()
-                        if txt:
-                            abs_parts.append(txt)
+                            all_abs_text.append("\n\n".join(paragraphs))
+                        else:
+                            # Fallback for abstracts without <p> tags (just raw text)
+                            raw_txt = " ".join(main_abstract.itertext()).strip()
+                            if raw_txt:
+                                all_abs_text.append(raw_txt)
 
-                raw_abstract = "\n\n".join(abs_parts)
+                raw_abstract = "\n\n---\n\n".join(all_abs_text)
 
-                # Clean
+                # Step 3: Professional Cleaning
                 cleaned_abs = clean(
                     raw_abstract,
-                    extra_whitespace=False,
+                    extra_whitespace=True,  # Changed to True for better RAG quality
                     dashes=True,
                     bullets=False
                 )
 
+                # Step 4: Remove accidental Keywords section at the end of abstract
                 cleaned_abs = re.split(
                     r'\n?\s*(keywords?|key words?)\s*:',
                     cleaned_abs,
                     flags=re.IGNORECASE
                 )[0]
 
-                cleaned_abs = re.sub(r'[ \t]+', ' ', cleaned_abs)
-                article.ArtAbstract = ProcessDataSrv._sanitize_string(cleaned_abs).strip()
+                # Step 5: SQL-Safe Sanitization (Critical for your SQL issue)
+                sanitized_abs = ProcessDataSrv._sanitize_string(cleaned_abs)
+                sanitized_abs = re.sub(r'[ \t]+', ' ', sanitized_abs)
+                article.ArtAbstract = re.sub(r'\n\s*\n+', '\n\n', sanitized_abs).strip()
             else:
                 article.ArtAbstract = ""
 
@@ -235,84 +240,67 @@ class ProcessDataSrv:
             if body_node is not None:
                 temp_body = copy.deepcopy(body_node)
 
-                # --- Step 1: Remove structural noise ---
+                # 1. Heavy Blacklist (Remove structural noise first)
                 unwanted_query = """
-                .//ref-list |
-                .//ref |
-                .//table-wrap |
-                .//fig |
-                .//ack |
-                .//notes |
-                .//sec[@sec-type='ref-list'] |
-                .//sec[@sec-type='fn-group'] |
-                .//sec[@sec-type='supplementary-material']
+                .//ref-list | .//ref | .//table-wrap | .//fig | .//ack | .//notes |
+                .//sec[@sec-type='ref-list'] | .//sec[@sec-type='fn-group'] |
+                .//sec[@sec-type='supplementary-material'] | .//formula | .//inline-formula
                 """
-                for unwanted in temp_body.xpath(unwanted_query):
-                    parent = unwanted.getparent()
-                    if parent is not None:
-                        parent.remove(unwanted)
+                for node in temp_body.xpath(unwanted_query):
+                    if node.getparent() is not None:
+                        node.getparent().remove(node)
 
-                # --- Step 2: Whitelist scientific sections only ---
+                # 2. Scientific Whitelist
                 scientific_keywords = [
-                    "intro",
-                    "background",
-                    "material",
-                    "method",
-                    "patient",
-                    "study",
-                    "result",
-                    "discussion",
-                    "conclusion",
-                    "analysis",
-                    "experiment"
+                    "intro", "background", "material", "method", "patient",
+                    "study", "result", "discussion", "conclusion", "analysis", "experiment"
                 ]
 
-                valid_sections = []
-
-                for sec in temp_body.xpath("./sec"):  # فقط سکشن‌های سطح اول
+                allowed_sections = []
+                for sec in temp_body.xpath("./sec"):
                     title_text = " ".join(sec.xpath("./title//text()")).strip().lower()
-
                     if any(key in title_text for key in scientific_keywords):
-                        valid_sections.append(sec)
+                        allowed_sections.append(sec)
 
-                # --- Step 3: Fallback اگر مقاله سکشن استاندارد نداشت ---
-                if not valid_sections:
-                    working_nodes = temp_body.xpath(".//p")
-                else:
+                # 3. Hybrid Strategy
+                if allowed_sections:
+                    # Use only whitelisted sections (Highest Quality)
                     working_nodes = []
-                    for sec in valid_sections:
+                    for sec in allowed_sections:
                         working_nodes.extend(sec.xpath(".//title | .//p"))
+                else:
+                    # Fallback: No standard sections found, use all cleaned paragraphs
+                    working_nodes = temp_body.xpath(".//p")
 
-                # --- Step 4: Extract text ---
+                # 4. Extraction & Paragraph Structure
                 raw_parts = []
                 for elem in working_nodes:
                     txt = " ".join(elem.itertext()).strip()
                     if txt:
                         raw_parts.append(txt)
 
-                raw_body_text = "\n".join(raw_parts)
+                raw_body_text = "\n\n".join(raw_parts)
 
-                # --- Step 5: Remove short fig/table references ---
+                # 5. Figure Ref Filtering & Cleaning
                 filtered_text = ProcessDataSrv._filter_figure_references(raw_body_text)
 
-                # --- Step 6: Clean text ---
                 cleaned_body = clean(
                     filtered_text,
-                    extra_whitespace=False,
+                    extra_whitespace=True,
                     dashes=True,
                     bullets=False
                 )
 
-                processed_body = re.sub(r'[ \t]+', ' ', cleaned_body)
+                # 6. Final Boundary Check
+                ref_stop_pattern = r'\n\s*(references|reference list|bibliography|literature cited|acknowledgments)\s*\n'
+                processed_body = re.split(ref_stop_pattern, cleaned_body, maxsplit=1, flags=re.IGNORECASE)[0]
 
-                # Remove accidental reference section if slipped through
-                ref_stop_pattern = r'\n\s*(references|reference list|bibliography|literature cited)\s*\n'
-                processed_body = re.split(ref_stop_pattern, processed_body, maxsplit=1, flags=re.IGNORECASE)[0]
-
-                clean_body = ProcessDataSrv._sanitize_string(processed_body)
-                no_extra_tabs = re.sub(r'[ \t]+', ' ', clean_body)
-
-                article.ArtBody = re.sub(r'\n+', '\n\n', no_extra_tabs).strip()
+                # 7. SQL-Safe Sanitization
+                sanitized_body = ProcessDataSrv._sanitize_string(processed_body)
+                sanitized_body = re.sub(r'[ \t]+', ' ', sanitized_body)
+                article.ArtBody = re.sub(r'\n\s*\n+', '\n\n', sanitized_body).strip()
+            else:
+                article.ArtBody = ""
 
             # Funding
             article.FundingGrant = " | ".join([f.text.strip() for f in root.xpath(".//funding-source") if f.text])

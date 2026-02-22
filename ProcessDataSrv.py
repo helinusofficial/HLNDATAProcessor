@@ -93,53 +93,63 @@ class ProcessDataSrv:
             if abstract_nodes:
                 all_abs_text = []
 
-                # Process all abstract nodes (usually just one, but safer)
                 for main_abstract in abstract_nodes:
-                    # Step 1: Handle Structured Abstracts
+                    # --- Step 1: Handle structured abstracts ---
                     structured_secs = main_abstract.xpath("./sec")
 
                     if structured_secs:
                         for sec in structured_secs:
-                            title_text = " ".join(sec.xpath("./title//text()")).strip()
-                            paragraphs = [" ".join(p.itertext()).strip() for p in sec.xpath(".//p") if
-                                          " ".join(p.itertext()).strip()]
+                            # Section title uppercase for LLM prominence
+                            title_text = " ".join(sec.xpath("./title//text()")).strip().upper()
+
+                            # Collect all paragraphs in this section
+                            paragraphs = [
+                                " ".join(p.itertext()).strip()
+                                for p in sec.xpath(".//p")
+                                if " ".join(p.itertext()).strip()
+                            ]
 
                             if paragraphs:
-                                section_content = "\n".join(paragraphs)
+                                section_content = "\n\n".join(paragraphs)
                                 if title_text:
-                                    all_abs_text.append(f"{title_text.upper()}\n{section_content}")
+                                    all_abs_text.append(f"{title_text}\n{section_content}")
                                 else:
                                     all_abs_text.append(section_content)
                     else:
-                        # Step 2: Handle Simple Abstracts
-                        paragraphs = [" ".join(p.itertext()).strip() for p in main_abstract.xpath(".//p") if
-                                      " ".join(p.itertext()).strip()]
+                        # --- Step 2: Handle simple abstracts ---
+                        paragraphs = [
+                            " ".join(p.itertext()).strip()
+                            for p in main_abstract.xpath(".//p")
+                            if " ".join(p.itertext()).strip()
+                        ]
                         if paragraphs:
                             all_abs_text.append("\n\n".join(paragraphs))
                         else:
-                            # Fallback for abstracts without <p> tags (just raw text)
+                            # Fallback for abstracts without <p> tags
                             raw_txt = " ".join(main_abstract.itertext()).strip()
                             if raw_txt:
                                 all_abs_text.append(raw_txt)
 
+                # --- Step 3: Join all sections with clean separator ---
+                # Using a subtle separator for LLM/RAG clarity
                 raw_abstract = "\n\n---\n\n".join(all_abs_text)
 
-                # Step 3: Professional Cleaning
+                # --- Step 4: Clean text ---
                 cleaned_abs = clean(
                     raw_abstract,
-                    extra_whitespace=True,  # Changed to True for better RAG quality
+                    extra_whitespace=True,  # better for RAG quality
                     dashes=True,
                     bullets=False
                 )
 
-                # Step 4: Remove accidental Keywords section at the end of abstract
+                # --- Step 5: Remove Keywords section at the end ---
                 cleaned_abs = re.split(
                     r'\n?\s*(keywords?|key words?)\s*:',
                     cleaned_abs,
                     flags=re.IGNORECASE
                 )[0]
 
-                # Step 5: SQL-Safe Sanitization (Critical for your SQL issue)
+                # --- Step 6: SQL-safe sanitization ---
                 sanitized_abs = ProcessDataSrv._sanitize_string(cleaned_abs)
                 sanitized_abs = re.sub(r'[ \t]+', ' ', sanitized_abs)
                 article.ArtAbstract = re.sub(r'\n\s*\n+', '\n\n', sanitized_abs).strip()

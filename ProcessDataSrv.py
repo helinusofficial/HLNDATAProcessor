@@ -3,7 +3,7 @@ import re
 from lxml import etree
 from unstructured.cleaners.core import clean, clean_extra_whitespace
 from datetime import datetime
-
+from difflib import SequenceMatcher
 from ArticleModel import ArticleModel
 import copy
 
@@ -80,16 +80,35 @@ class ProcessDataSrv:
             check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
 
             # --- Stage 2: Strict Filtering (Human Breast Only) ---
+            # Split abstract into sentences (simple split on dot, can be improved)
+            abstract_text = raw_abstract.lower()
+            paragraphs = [p.strip() for p in re.split(r'\n\s*\n', abstract_text) if p.strip()]
             is_breast_related = False
-            for k in ProcessDataSrv.breast_keywords:
-                for ctx in ProcessDataSrv.breast_context_words:
-                    # check if keyword and context word appear within 5 words of each other
-                    pattern = rf'\b{k}\b(?:\W+\w+){{0,5}}?\W+\b{ctx}\b'
-                    if re.search(pattern, check_zone):
-                        is_breast_related = True
-                        break
-                if is_breast_related:
+
+            # Track keyword and context across paragraphs
+            keyword_found = False
+            context_found = False
+
+            for para in paragraphs:
+                para_has_keyword = any(k in para for k in ProcessDataSrv.breast_keywords) or any(
+                    ProcessDataSrv._fuzzy_in(k, para) for k in ProcessDataSrv.breast_keywords)
+                para_has_context = any(ctx in para for ctx in ProcessDataSrv.breast_context_words) or any(
+                    ProcessDataSrv._fuzzy_in(ctx, para) for ctx in ProcessDataSrv.breast_context_words)
+
+                # Update tracking flags
+                if para_has_keyword:
+                    keyword_found = True
+                if para_has_context:
+                    context_found = True
+
+                # If both found in same paragraph, break early
+                if para_has_keyword and para_has_context:
+                    is_breast_related = True
                     break
+
+            # If keyword and context found in nearby paragraphs, accept as related
+            if not is_breast_related and keyword_found and context_found:
+                is_breast_related = True
 
             has_human = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in  ProcessDataSrv.human_indicators) or \
                         any(re.search(rf'\b{c.lower()}\b', check_zone) for c in  ProcessDataSrv.human_breast_cells) or \
@@ -345,3 +364,12 @@ class ProcessDataSrv:
         # anything inside [] or ()
         pattern = r'(\[[\w\-,\s.&]+\]|\([\w\-,\s.&]+\))'
         return re.sub(pattern, fix_ref, text)
+
+    @staticmethod
+    def _fuzzy_in(word, text, threshold=0.8):
+        """Check if word approximately exists in text using fuzzy matching"""
+        words = re.findall(r'\w+', text)
+        for w in words:
+            if SequenceMatcher(None, word, w).ratio() >= threshold:
+                return True
+        return False

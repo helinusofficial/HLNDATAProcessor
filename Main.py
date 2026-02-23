@@ -15,7 +15,7 @@ def main():
 
     code_name = "process"
     base_output_path = r"./"
-    input_folder = r"\\192.168.1.22\c$\EuropePMC\EuropePMC_Breast_Data\2016\01"
+    input_folder = r"d:\a"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")

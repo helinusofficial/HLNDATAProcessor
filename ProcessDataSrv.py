@@ -41,7 +41,21 @@ class ProcessDataSrv:
         "female","lactation", "breastfeeding", "mammography", "mastalgia", "gynecomastia" , "breast surgery",
         "maternal", "pregnancy", "menopause", "postmenopausal", "nulliparous"
     ]
-
+    breast_keywords = ["breast", "mammary"]
+    breast_context_words = [
+        "cell", "cells",  # سلول‌ها
+        "tissue", "tissues",  # بافت‌ها
+        "gland", "glands",  # غدد
+        "epithelium", "epithelial",  # پوشش سلولی
+        "lobule", "lobules",  # لوبول‌های پستان
+        "duct", "ducts",  # مجاری پستان
+        "stroma", "stromal",  # بافت زمینه‌ای پستان
+        "mammary gland", "mammary tissue",  # اصطلاحات کامل
+        "fibroblast", "fibroblasts",  # سلول‌های فیبروبلاست
+        "adipocyte", "adipocytes",  # سلول‌های چربی در پستان
+        "myoepithelial", "myoepithelium",  # سلول‌های میو اپی‌تلیال
+        "lobular", "ductal"  # انواع سرطان یا بافت پستان
+    ]
     human_breast_cells = ["mcf-7", "mcf7", "mda-mb-231", "t47d", "sk-br-3", "bt-474"]
     animal_breast_cells = ["4t1", "e0771", "mmt", "mtln3"]
 
@@ -69,19 +83,26 @@ class ProcessDataSrv:
             check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
 
             # --- Stage 2: Strict Filtering (Human Breast Only) ---
-            is_breast_related = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in  ["breast", "mammary"]) or \
-                                any(re.search(rf'\b{c.lower()}\b', check_zone) for c in ProcessDataSrv.human_breast_cells)
+            is_breast_related = False
+            for k in ProcessDataSrv.breast_keywords:
+                for ctx in ProcessDataSrv.breast_context_words:
+                    # check if keyword and context word appear within 5 words of each other
+                    pattern = rf'\b{k}\b(?:\W+\w+){{0,5}}?\W+\b{ctx}\b'
+                    if re.search(pattern, check_zone):
+                        is_breast_related = True
+                        break
+                if is_breast_related:
+                    break
 
             has_human = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in  ProcessDataSrv.human_indicators) or \
                         any(re.search(rf'\b{c.lower()}\b', check_zone) for c in  ProcessDataSrv.human_breast_cells) or \
                         "humans" in meshes.lower()
-
             has_animal = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in ProcessDataSrv.animal_keywords) or \
                          any(re.search(rf'\b{c.lower()}\b', check_zone) for c in ProcessDataSrv.animal_breast_cells)
 
             article.NonTarget = False
 
-            if not is_breast_related or (has_animal and not has_human):
+            if not (is_breast_related and has_human) or  has_animal:
                 article.NonTarget = True
                 return article
 

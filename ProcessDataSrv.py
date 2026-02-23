@@ -43,18 +43,15 @@ class ProcessDataSrv:
     ]
     breast_keywords = ["breast", "mammary"]
     breast_context_words = [
-        "cell", "cells",  # سلول‌ها
-        "tissue", "tissues",  # بافت‌ها
-        "gland", "glands",  # غدد
-        "epithelium", "epithelial",  # پوشش سلولی
-        "lobule", "lobules",  # لوبول‌های پستان
-        "duct", "ducts",  # مجاری پستان
-        "stroma", "stromal",  # بافت زمینه‌ای پستان
-        "mammary gland", "mammary tissue",  # اصطلاحات کامل
-        "fibroblast", "fibroblasts",  # سلول‌های فیبروبلاست
-        "adipocyte", "adipocytes",  # سلول‌های چربی در پستان
-        "myoepithelial", "myoepithelium",  # سلول‌های میو اپی‌تلیال
-        "lobular", "ductal"  # انواع سرطان یا بافت پستان
+        # Scientific context
+        "cell", "cells", "tissue", "tissues", "gland", "glands",
+        "epithelium", "epithelial", "lobule", "lobules",
+        "duct", "ducts", "stroma", "stromal", "fibroblast", "fibroblasts",
+        "adipocyte", "adipocytes", "myoepithelial", "myoepithelium",
+        "lobular", "ductal",
+        "mammary gland", "mammary tissue",
+        # Clinical context
+        "cancer", "tumor", "tumour", "carcinoma", "biopsy", "patient", "patients"
     ]
     human_breast_cells = ["mcf-7", "mcf7", "mda-mb-231", "t47d", "sk-br-3", "bt-474"]
     animal_breast_cells = ["4t1", "e0771", "mmt", "mtln3"]

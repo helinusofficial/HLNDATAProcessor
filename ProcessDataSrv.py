@@ -137,6 +137,8 @@ class ProcessDataSrv:
 
                 # Step 4: Join all paragraphs into one text
                 final_text = "\r\n\r\n".join(all_paragraphs)
+                final_text = re.split(r'\s*\b(?:keywords?|key words?)\b\s*:', final_text, flags=re.IGNORECASE)[
+                    0].strip()
                 article.ArtAbstract = final_text
             else:
                 article.ArtAbstract = ""

@@ -15,7 +15,7 @@ def main():
 
     code_name = "process"
     base_output_path = r"./"
-    input_folder = r"D:\a"
+    input_folder = r"\\192.168.1.22\c$\EuropePMC\EuropePMC_Breast_Data\2016\01"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")
@@ -69,7 +69,10 @@ def main():
 
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
-                logging.error(f"Error processing file {path}")
+                if new_id ==-1:
+                    logging.error(f"Double DOI: {path}")
+                else:
+                    logging.error(f"Error processing file: {path}")
 
             if index % 100 == 0 or index == total_files:
                 logging.info(f"[{index}/{total_files}] Processed")

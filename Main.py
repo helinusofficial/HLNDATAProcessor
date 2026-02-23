@@ -81,10 +81,9 @@ def main():
                     logging.error(f"Error processing file: {path}")
 
             if (index + 1) % 100 == 0:
-                logging.info(f"[{index}/{total_files}] Processed")
-                target_Count+=1
-                logging.info(f"Target:{target_Count}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
-
+                target_Count += 1
+                logging.info(f"[{index}/{total_files}] Processed - Target:{target_Count}   error:{error_Count}   "
+                             f"doubleDOI:{doubleDOI_Count}   NonTarget:{nonTarget_Count}")
         except Exception as e:
             logging.error(f"Error processing file {path}: {str(e)}")
             continue

@@ -43,16 +43,16 @@ class ProcessDataSrv:
     ]
     breast_keywords = ["breast", "mammary"]
     breast_context_words = [
-        # Scientific context
-        "cell", "cells", "tissue", "tissues", "gland", "glands",
-        "epithelium", "epithelial", "lobule", "lobules",
-        "duct", "ducts", "stroma", "stromal", "fibroblast", "fibroblasts",
-        "adipocyte", "adipocytes", "myoepithelial", "myoepithelium",
-        "lobular", "ductal",
+        "cell", "cells", "gland", "glands", "epithelium", "epithelial",
+        "lobule", "lobules", "duct", "ducts", "stroma", "stromal",
+        "fibroblast", "fibroblasts", "adipocyte", "adipocytes",
+        "myoepithelial", "myoepithelium", "lobular", "ductal",
         "mammary gland", "mammary tissue",
-        # Clinical context
-        "cancer", "tumor", "tumour", "carcinoma", "biopsy", "patient", "patients"
+        # clinical words that need proximity to breast keyword
+        "cancer", "tumor", "tumour", "biopsy",
     ]
+    # words too general alone (patient, tissue) → check proximity
+    general_words = ["patient", "patients", "tissue", "tissues"]
     human_breast_cells = ["mcf-7", "mcf7", "mda-mb-231", "t47d", "sk-br-3", "bt-474"]
     animal_breast_cells = ["4t1", "e0771", "mmt", "mtln3"]
 
@@ -80,20 +80,32 @@ class ProcessDataSrv:
             check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
 
             # --- Stage 2: Strict Filtering (Human Breast Only) ---
-            # Split abstract into sentences (simple split on dot, can be improved)
+
             abstract_text = raw_abstract.lower()
+            # Split abstract into paragraphs
             paragraphs = [p.strip() for p in re.split(r'\n\s*\n', abstract_text) if p.strip()]
+
             is_breast_related = False
 
-            # Track keyword and context across paragraphs
             keyword_found = False
             context_found = False
 
             for para in paragraphs:
                 para_has_keyword = any(k in para for k in ProcessDataSrv.breast_keywords) or any(
                     ProcessDataSrv._fuzzy_in(k, para) for k in ProcessDataSrv.breast_keywords)
+
+                # Context words check
+                # 1. context words that always count
                 para_has_context = any(ctx in para for ctx in ProcessDataSrv.breast_context_words) or any(
                     ProcessDataSrv._fuzzy_in(ctx, para) for ctx in ProcessDataSrv.breast_context_words)
+
+                # 2. general words → only count if breast keyword is present in same paragraph
+                para_has_general_context = any(gw in para for gw in ProcessDataSrv.general_words)
+                if para_has_general_context and not para_has_keyword:
+                    para_has_general_context = False  # ignore if no breast keyword
+
+                # Combine context
+                para_has_context = para_has_context or para_has_general_context
 
                 # Update tracking flags
                 if para_has_keyword:
@@ -106,7 +118,7 @@ class ProcessDataSrv:
                     is_breast_related = True
                     break
 
-            # If keyword and context found in nearby paragraphs, accept as related
+            # Multi-paragraph match: if keyword in one para and context in another, accept
             if not is_breast_related and keyword_found and context_found:
                 is_breast_related = True
 

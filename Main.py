@@ -15,6 +15,7 @@ def main():
 
     code_name = "process"
     base_output_path = r"./"
+    input_folder = r"D:\a"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")
@@ -38,7 +39,6 @@ def main():
     torch.manual_seed(random_state)
     logging.info(f"Started on: {datetime.fromtimestamp(start_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
 
-    input_folder = r"D:\a"
     logging.info("Connecting to SQl Server...")
     db = SqlServerSrv(server='.',database='HLNLLMBreastDB', username='sa', password='sa')
     db.connect()
@@ -72,7 +72,7 @@ def main():
                 logging.error(f"Error processing file {path}")
 
             if index % 100 == 0 or index == total_files:
-                logging.info(f"[{index}/{total_files}] Processed: {article_model.ArtTitle[:50]}...")
+                logging.info(f"[{index}/{total_files}] Processed")
 
         except Exception as e:
             logging.error(f"Error processing file {path}: {str(e)}")

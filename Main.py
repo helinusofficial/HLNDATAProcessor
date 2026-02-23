@@ -15,7 +15,7 @@ def main():
 
     code_name = "process"
     base_output_path = r"./"
-    input_folder = r"d:\a"
+    input_folder = r"\\192.168.1.22\c$\EuropePMC\EuropePMC_Breast_Data\2016"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")
@@ -59,19 +59,23 @@ def main():
     total_files = len(file_paths)
     logging.info(f"Total files found: {total_files}")
     logging.info("Processing started linearly...")
-    NonTarget_Count=0
+    nonTarget_Count=0
+    doubleDOI_Count=0
+    error_Count=0
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
             if article_model and article_model.NonTarget:
-                NonTarget_Count += 1
+                nonTarget_Count += 1
                 continue
 
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
                 if new_id ==-1:
+                    doubleDOI_Count+=1
                     logging.error(f"Double DOI: {path}")
                 else:
+                    error_Count+=1
                     logging.error(f"Error processing file: {path}")
 
             if index % 100 == 0 or index == total_files:
@@ -82,8 +86,8 @@ def main():
             continue
 
     db.close()
-    target=total_files-NonTarget_Count
-    logging.info(f"Total:{total_files}, Target:{target}, NonTarget_Count:{NonTarget_Count}")
+    target=total_files-nonTarget_Count-error_Count-doubleDOI_Count
+    logging.info(f"Total:{total_files} Target:{target}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
     logging.info("--- Processing Completed Successfully ---")
     end_time = time.time()
     elapsed = end_time - start_time

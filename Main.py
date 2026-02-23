@@ -1,14 +1,13 @@
 import os
-from ProcessDataSrv import ProcessDataSrv
-from SqlServerSrv import SqlServerSrv
-from datetime import datetime
-import os
 import sys
 import time
 import numpy as np
 import random
 import logging
 import torch
+from ProcessDataSrv import ProcessDataSrv
+from SqlServerSrv import SqlServerSrv
+from datetime import datetime
 
 def main():
     # Output and logging
@@ -60,12 +59,12 @@ def main():
     total_files = len(file_paths)
     logging.info(f"Total files found: {total_files}")
     logging.info("Processing started linearly...")
-
+    NonTarget_Count=0
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
             if article_model and article_model.NonTarget:
-                logging.info(f"NonTarget file {article_model.ArtFileName}")
+                NonTarget_Count += 1
                 continue
 
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
@@ -80,6 +79,8 @@ def main():
             continue
 
     db.close()
+    target=total_files-NonTarget_Count
+    logging.info(f"Total:{total_files}, Target:{target}, NonTarget_Count:{NonTarget_Count}")
     logging.info("--- Processing Completed Successfully ---")
     end_time = time.time()
     elapsed = end_time - start_time

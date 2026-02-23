@@ -69,22 +69,21 @@ class ProcessDataSrv:
             check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
 
             # --- Stage 2: Strict Filtering (Human Breast Only) ---
-            is_breast_related = any(x in check_zone for x in ["breast", "mammary"]) or \
-                                any(c in check_zone for c in ProcessDataSrv.human_breast_cells)
+            is_breast_related = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in  ["breast", "mammary"]) or \
+                                any(re.search(rf'\b{c.lower()}\b', check_zone) for c in ProcessDataSrv.human_breast_cells)
 
-            has_human = any(k in check_zone for k in ProcessDataSrv.human_indicators) or \
-                        any(c in check_zone for c in ProcessDataSrv.human_breast_cells) or \
+            has_human = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in  ProcessDataSrv.human_indicators) or \
+                        any(re.search(rf'\b{c.lower()}\b', check_zone) for c in  ProcessDataSrv.human_breast_cells) or \
                         "humans" in meshes.lower()
 
-            has_animal = any(k in check_zone for k in ProcessDataSrv.animal_keywords) or \
-                         any(c in check_zone for c in ProcessDataSrv.animal_breast_cells)
+            has_animal = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in ProcessDataSrv.animal_keywords) or \
+                         any(re.search(rf'\b{c.lower()}\b', check_zone) for c in ProcessDataSrv.animal_breast_cells)
 
-            # Decision: Discard if not breast related OR if it's strictly animal without human evidence
+            article.NonTarget = False
+
             if not is_breast_related or (has_animal and not has_human):
                 article.NonTarget = True
                 return article
-
-            article.NonTarget = False
 
             # --- Stage 3: Full Metadata Extraction ---
             article.ArtTitle = title

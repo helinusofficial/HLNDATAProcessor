@@ -86,7 +86,7 @@ def main():
             continue
 
     db.close()
-    target=total_files-nonTarget_Count-error_Count-doubleDOI_Count
+    target=(total_files-nonTarget_Count-error_Count-doubleDOI_Count)
     logging.info(f"Total:{total_files} Target:{target}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
     logging.info("--- Processing Completed Successfully ---")
     end_time = time.time()

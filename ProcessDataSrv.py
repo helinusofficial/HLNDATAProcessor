@@ -10,30 +10,16 @@ import copy
 class ProcessDataSrv:
     ref_stop_pattern = r'\n\s*(references|reference list|bibliography|literature cited|acknowledgments)\s*\n'
     animal_keywords = [
-        # موش‌ها و رت‌ها
         "mouse", "mice", "rat", "sprague dawley", "wistar", "long evans",
-        # خرگوش‌ها
-        "rabbit", "rabbits",
-        # سگ‌ها و گربه‌ها
-        "dog", "dogs", "cat", "cats",
-        # ماهی و آبزیان
-        "zebrafish", "danio rerio", "frog", "xenopus", "fish", "salmon",
-        # حشرات و مدل‌های ساده
-        "fly", "drosophila", "bee", "mosquito",
-        # کرم‌ها و نماتدها
-        "c. elegans", "caenorhabditis elegans", "worm",
-        # مخمرها و قارچ‌ها
-        "yeast", "saccharomyces cerevisiae",
-        # دیگر پستانداران آزمایشگاهی
-        "guinea pig", "hamster", "gerbil", "ferret",
-        # پرندگان
-        "chicken", "quail", "duck",
-        # آبزیان کوچک آزمایشگاهی
-        "xenopus laevis", "xenopus tropicalis",
-        # مدل‌های آزمایشگاهی کمتر رایج
-        "pig", "minipig", "sheep", "goat", "cow", "calf", "horse",
-        "bovine", "cattle", "ewe", "goat", "mare", "sow", "veterinary", "udder",
-        "mastitis", "ruminant", "ovine", "caprine", "porcine", "heifer", "buffalo", "dairy"
+        "rabbit", "rabbits", "dog", "dogs", "cat", "cats", "zebrafish",
+        "danio rerio", "frog", "xenopus", "salmon", "drosophila",
+        "bee", "mosquito", "c. elegans", "caenorhabditis elegans",
+        "saccharomyces cerevisiae", "guinea pig", "hamster", "gerbil",
+        "ferret", "chicken", "quail", "duck", "xenopus laevis",
+        "xenopus tropicalis", "pig", "minipig", "sheep", "goat", "cow",
+        "calf", "horse", "bovine", "cattle", "ewe", "mare", "sow",
+        "veterinary", "ruminant", "ovine", "caprine", "porcine",
+        "heifer", "buffalo", "dairy"
     ]
 
     human_indicators = [
@@ -79,58 +65,38 @@ class ProcessDataSrv:
 
             check_zone = f"{title} {raw_abstract} {kwds} {meshes}".lower()
 
-            # --- Stage 2: Strict Filtering (Human Breast Only) ---
-
+            # --- Stage 2: Refined Filtering (Anti-Fake Logic) ---
             abstract_text = raw_abstract.lower()
-            # Split abstract into paragraphs
-            paragraphs = [p.strip() for p in re.split(r'\n\s*\n', abstract_text) if p.strip()]
+            title_text = title.lower()
+            check_zone = f"{title_text} {abstract_text} {kwds.lower()} {meshes.lower()}"
 
+            breast_matches = re.findall(r'\b(breast|mammary)\b', check_zone)
+            breast_count = len(breast_matches)
+            escaped_context = '|'.join(
+                re.escape(word) for word in (ProcessDataSrv.breast_context_words + ProcessDataSrv.general_words))
+
+            context_pattern = r'\b(breast|mammary)\b\s*(?:\w+\s+){0,5}\b(' + escaped_context + r')\b'
+            context_match_nearby = re.search(context_pattern, check_zone, re.IGNORECASE)
             is_breast_related = False
 
-            keyword_found = False
-            context_found = False
-
-            for para in paragraphs:
-                para_has_keyword = any(k in para for k in ProcessDataSrv.breast_keywords) or any(
-                    ProcessDataSrv._fuzzy_in(k, para) for k in ProcessDataSrv.breast_keywords)
-
-                # Context words check
-                # 1. context words that always count
-                para_has_context = any(ctx in para for ctx in ProcessDataSrv.breast_context_words) or any(
-                    ProcessDataSrv._fuzzy_in(ctx, para) for ctx in ProcessDataSrv.breast_context_words)
-
-                # 2. general words → only count if breast keyword is present in same paragraph
-                para_has_general_context = any(gw in para for gw in ProcessDataSrv.general_words)
-                if para_has_general_context and not para_has_keyword:
-                    para_has_general_context = False  # ignore if no breast keyword
-
-                # Combine context
-                para_has_context = para_has_context or para_has_general_context
-
-                # Update tracking flags
-                if para_has_keyword:
-                    keyword_found = True
-                if para_has_context:
-                    context_found = True
-
-                # If both found in same paragraph, break early
-                if para_has_keyword and para_has_context:
-                    is_breast_related = True
-                    break
-
-            # Multi-paragraph match: if keyword in one para and context in another, accept
-            if not is_breast_related and keyword_found and context_found:
+            if re.search(r'\b(breast|mammary)\b', title_text):
+                is_breast_related = True
+            elif breast_count >= 2 and context_match_nearby:
+                is_breast_related = True
+            elif breast_count >= 1 and any(
+                    re.search(rf'\b{re.escape(c.lower())}\b', check_zone) for c in ProcessDataSrv.human_breast_cells):
                 is_breast_related = True
 
-            has_human = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in  ProcessDataSrv.human_indicators) or \
-                        any(re.search(rf'\b{c.lower()}\b', check_zone) for c in  ProcessDataSrv.human_breast_cells) or \
+            has_human = any(re.search(rf'\b{re.escape(k.lower())}\b', check_zone) for k in ProcessDataSrv.human_indicators) or \
                         "humans" in meshes.lower()
-            has_animal = any(re.search(rf'\b{k.lower()}\b', check_zone) for k in ProcessDataSrv.animal_keywords) or \
-                         any(re.search(rf'\b{c.lower()}\b', check_zone) for c in ProcessDataSrv.animal_breast_cells)
+
+            has_animal = any(re.search(rf'\b{re.escape(k.lower())}\b', check_zone) for k in ProcessDataSrv.animal_keywords) or \
+                         any(re.search(rf'\b{re.escape(c.lower())}\b', check_zone) for c in
+                             ProcessDataSrv.animal_breast_cells)
 
             article.NonTarget = False
 
-            if not (is_breast_related and has_human) or  has_animal:
+            if not (is_breast_related and has_human) or has_animal:
                 article.NonTarget = True
                 return article
 

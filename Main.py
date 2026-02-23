@@ -62,6 +62,7 @@ def main():
     nonTarget_Count=0
     doubleDOI_Count=0
     error_Count=0
+    target_Count=0
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
@@ -78,17 +79,18 @@ def main():
                     error_Count+=1
                     logging.error(f"Error processing file: {path}")
 
-            if index % 100 == 0 or index == total_files:
+            if (index + 1) % 100 == 0:
                 logging.info(f"[{index}/{total_files}] Processed")
+                target_Count+=1
+                logging.info(f"Total:{total_files} Target:{target_Count}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
 
         except Exception as e:
             logging.error(f"Error processing file {path}: {str(e)}")
             continue
 
     db.close()
-    target=(total_files-nonTarget_Count-error_Count-doubleDOI_Count)
-    logging.info(f"Total:{total_files} Target:{target}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
     logging.info("--- Processing Completed Successfully ---")
+    logging.info(f"Total:{total_files} Target:{target_Count}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
     end_time = time.time()
     elapsed = end_time - start_time
     minutes = int(elapsed // 60)

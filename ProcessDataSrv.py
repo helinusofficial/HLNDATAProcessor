@@ -239,9 +239,13 @@ class ProcessDataSrv:
                 temp_body = copy.deepcopy(body_node)
 
                 unwanted_query = """
-                .//ref-list | .//ref | .//table-wrap | .//fig | .//ack | .//notes |
-                .//sec[@sec-type='ref-list'] | .//sec[@sec-type='fn-group'] |
-                .//sec[@sec-type='supplementary-material'] | .//formula | .//inline-formula
+                    .//ref-list | .//ref | .//table-wrap | .//fig | .//ack | .//notes |
+                    .//sec[@sec-type='ref-list'] | .//sec[@sec-type='fn-group'] |
+                    .//sec[@sec-type='supplementary-material'] | .//formula | .//inline-formula |
+                    .//sec[@sec-type='ack'] | .//sec[@sec-type='COI-statement'] | 
+                    .//sec[@sec-type='author-contribution'] | .//sec[@sec-type='data-availability'] |
+                    .//sec[contains(@id, 'ack')] | .//sec[contains(@id, 'competing')] |
+                    .//sec[contains(@id, 'con')] | .//glossary | .//app-group
                 """
                 for node in temp_body.xpath(unwanted_query):
                     if node.getparent() is not None:
@@ -250,9 +254,9 @@ class ProcessDataSrv:
                 raw_parts = []
                 for sec in temp_body.xpath(".//sec"):
                     # Include title
-                    title_text = " ".join(sec.xpath("./title//text()")).strip()
-                    if title_text:
-                        raw_parts.append(title_text)
+                    # title_text = " ".join(sec.xpath("./title//text()")).strip()
+                    # if title_text:
+                    #     raw_parts.append(title_text)
 
                     for p in sec.xpath(".//p"):
                         txt = " ".join(p.itertext()).strip()

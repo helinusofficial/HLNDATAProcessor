@@ -143,8 +143,9 @@ class ProcessDataSrv:
 
             pmc = ProcessDataSrv._get_text(root, ".//article-id[@pub-id-type='pmc']")
             if pmc:
-                pmc_clean = pmc.upper().replace('PMC', '').strip()
-                article.BankId = int(pmc_clean) if pmc_clean.isdigit() else None
+                pmc_clean = re.sub(r'\D', '', pmc)
+                if pmc_clean.isdigit():
+                    article.BankId = int(pmc_clean)
 
             article.ArtVolume = ProcessDataSrv._get_text(root, ".//volume")
             article.ArtIssue = ProcessDataSrv._get_text(root, ".//issue")

@@ -63,6 +63,7 @@ def main():
     doubleDOI_Count=0
     error_Count=0
     target_Count=0
+
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
@@ -82,7 +83,7 @@ def main():
             if (index + 1) % 100 == 0:
                 logging.info(f"[{index}/{total_files}] Processed")
                 target_Count+=1
-                logging.info(f"Total:{total_files} Target:{target_Count}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
+                logging.info(f"Target:{target_Count}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
 
         except Exception as e:
             logging.error(f"Error processing file {path}: {str(e)}")

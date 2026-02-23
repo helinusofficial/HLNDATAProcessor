@@ -123,6 +123,7 @@ class ProcessDataSrv:
 
                 # Step 4: Join all paragraphs into one text
                 final_text = "\r\n\r\n".join(all_paragraphs)
+                article.ArtAbstract = final_text
             else:
                 article.ArtAbstract = ""
 

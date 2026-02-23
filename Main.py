@@ -15,7 +15,7 @@ def main():
 
     code_name = "process"
     base_output_path = r"./"
-    input_folder = r"\\192.168.1.22\c$\EuropePMC\EuropePMC_Breast_Data\2016"
+    input_folder = r"\\192.168.1.22\c$\NCBI-E-utilities\PMC_BreastCancer_XML"
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output_path = os.path.join(base_output_path, f"{code_name}_Run_{timestamp}")
@@ -63,14 +63,20 @@ def main():
     doubleDOI_Count=0
     error_Count=0
     target_Count=0
-
+    nobody_Count=0
+    noabs_Count=0
     for index, path in enumerate(file_paths, 1):
         try:
             article_model = ProcessDataSrv.process_file(path)
             if article_model and article_model.NonTarget:
                 nonTarget_Count += 1
                 continue
-
+            if article_model and (not article_model.ArtBody or article_model.ArtBody.strip() == ''):
+                nobody_Count += 1
+                continue
+            if article_model and (not article_model.ArtAbstract or article_model.ArtAbstract.strip() == ''):
+                noabs_Count += 1
+                continue
             new_id = db.insert_with_stored_procedure('InsertData', article_model)
             if new_id<=0:
                 if new_id ==-1:
@@ -84,14 +90,17 @@ def main():
 
             if (index + 1) % 100 == 0:
                 logging.info(f"[{index}/{total_files}] Processed - Target:{target_Count}   error:{error_Count}   "
-                             f"doubleDOI:{doubleDOI_Count}   NonTarget:{nonTarget_Count}")
+                             f"doubleDOI:{doubleDOI_Count}   NonTarget:{nonTarget_Count}    nobody_Count:{nobody_Count}"
+                             f"    noabs_Count:{noabs_Count}")
         except Exception as e:
             logging.error(f"Error processing file {path}: {str(e)}")
             continue
 
     db.close()
     logging.info("--- Processing Completed Successfully ---")
-    logging.info(f"Total:{total_files} Target:{target_Count}, error:{error_Count} doubleDOI:{doubleDOI_Count} NonTarget:{nonTarget_Count}")
+    logging.info(f"Total:{total_files} Target:{target_Count}    error:{error_Count}   "
+                 f"doubleDOI:{doubleDOI_Count}    NonTarget:{nonTarget_Count}    nobody_Count:{nobody_Count}"
+                 f"    noabs_Count:{noabs_Count}")
     end_time = time.time()
     elapsed = end_time - start_time
     minutes = int(elapsed // 60)

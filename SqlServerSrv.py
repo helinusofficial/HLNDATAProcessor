@@ -28,8 +28,6 @@ class SqlServerSrv:
             self.connect()
 
         cursor = self.conn.cursor()
-
-        # تعریف صریح پارامترها برای جلوگیری از جابه‌جایی و حذف دیتای NVARCHAR(MAX)
         sql = f"""
         EXEC {sp_name} 
             @ArtTitle=%s, @PubDate=%s, @ArtLanguage=%s, @Pmid=%s, @BankId=%s, @BankNo=%s, 
@@ -40,8 +38,6 @@ class SqlServerSrv:
             @OrcidIds=%s, @FundingGrant=%s, @FundingId=%s, @EthicsStatement=%s, 
             @CorrespondingAuthor=%s, @ArtLicense=%s, @PubHistory=%s, @CustomMeta=%s
         """
-
-        # آماده‌سازی دیتا (استفاده از or "" برای جلوگیری از ارسال NULL به ستون‌های اجباری)
         params = (
             article.ArtTitle,
             article.PubDate,
@@ -80,8 +76,6 @@ class SqlServerSrv:
 
         try:
             cursor.execute(sql, params)
-
-            # دریافت ID تولید شده (در صورتی که SP شما SELECT آخر داشته باشد)
             new_id = None
             row = cursor.fetchone()
             if row:
@@ -94,7 +88,6 @@ class SqlServerSrv:
             if self.conn:
                 self.conn.rollback()
             print(f"Database Error: {e}")
-            # چاپ طول متن در صورت بروز خطا برای دیباگ نهایی
             if article.ArtBody:
                 print(f"Failed to send Body. Length: {len(article.ArtBody)}")
             raise
